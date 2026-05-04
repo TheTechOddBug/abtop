@@ -89,7 +89,11 @@ pub fn run_setup() {
         match serde_json::from_str(&content) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("  ✗ {} contains invalid JSON: {}", settings_file.display(), e);
+                eprintln!(
+                    "  ✗ {} contains invalid JSON: {}",
+                    settings_file.display(),
+                    e
+                );
                 eprintln!("    fix the file manually before running --setup");
                 std::process::exit(1);
             }
@@ -125,7 +129,10 @@ pub fn run_setup() {
         }),
     );
 
-    match fs::write(&settings_file, serde_json::to_string_pretty(&settings).unwrap_or_default()) {
+    match fs::write(
+        &settings_file,
+        serde_json::to_string_pretty(&settings).unwrap_or_default(),
+    ) {
         Ok(_) => println!("  ✓ updated {}", settings_file.display()),
         Err(e) => {
             eprintln!("  ✗ failed to update {}: {}", settings_file.display(), e);

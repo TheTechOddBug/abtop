@@ -1,4 +1,4 @@
-use crate::collector::{McpServer, MultiCollector, read_rate_limits};
+use crate::collector::{read_rate_limits, McpServer, MultiCollector};
 use crate::host_info::{AgentAggregate, HostMetrics, HostSampler};
 use crate::model::{AgentSession, OrphanPort, RateLimitInfo, SessionStatus};
 use crate::theme::Theme;
@@ -15,7 +15,8 @@ const MAX_SUMMARY_RETRIES: u32 = 2;
 
 /// Produce a terminal-safe fallback summary from a raw prompt.
 fn sanitize_fallback(prompt: &str, max_len: usize) -> String {
-    prompt.chars()
+    prompt
+        .chars()
         .filter(|c| !c.is_control() || *c == ' ')
         .take(max_len)
         .collect()
@@ -152,14 +153,17 @@ impl App {
 
     pub fn toggle_help(&mut self) {
         self.help_open = !self.help_open;
-        if self.help_open { self.view_open = false; }
+        if self.help_open {
+            self.view_open = false;
+        }
     }
 
     pub fn toggle_view_menu(&mut self) {
         self.view_open = !self.view_open;
-        if self.view_open { self.help_open = false; }
+        if self.view_open {
+            self.help_open = false;
+        }
     }
-
 
     pub fn toggle_panel(&mut self, panel: u8) {
         match panel {
@@ -181,7 +185,11 @@ impl App {
     /// produces (mostly stale "Done" rows).
     pub fn toggle_mcp_session_suppression(&mut self) {
         self.mcp_suppress_sessions = !self.mcp_suppress_sessions;
-        let label = if self.mcp_suppress_sessions { "on" } else { "off" };
+        let label = if self.mcp_suppress_sessions {
+            "on"
+        } else {
+            "off"
+        };
         self.set_status(format!("mcp session suppression: {}", label));
     }
 
@@ -250,7 +258,10 @@ impl App {
 
     pub fn cycle_theme(&mut self) {
         let names = crate::theme::THEME_NAMES;
-        let current = names.iter().position(|&n| n == self.theme.name).unwrap_or(0);
+        let current = names
+            .iter()
+            .position(|&n| n == self.theme.name)
+            .unwrap_or(0);
         let next = (current + 1) % names.len();
         self.theme = Theme::by_name(names[next]).unwrap_or_default();
         if let Err(e) = crate::config::save_theme(names[next]) {
@@ -264,7 +275,6 @@ impl App {
     pub fn set_status(&mut self, msg: String) {
         self.status_msg = Some((msg, Instant::now()));
     }
-
 
     pub fn tick(&mut self) {
         self.collector.set_mcp_suppress(self.mcp_suppress_sessions);
@@ -337,7 +347,11 @@ impl App {
 
         // Spawn summary jobs for sessions that need one
         for s in &self.sessions {
-            let retries = self.summary_retries.get(&s.session_id).copied().unwrap_or(0);
+            let retries = self
+                .summary_retries
+                .get(&s.session_id)
+                .copied()
+                .unwrap_or(0);
             let has_input = !s.initial_prompt.is_empty() || !s.first_assistant_text.is_empty();
             if has_input
                 && !self.summaries.contains_key(&s.session_id)
@@ -352,7 +366,11 @@ impl App {
                 let tx = self.summary_tx.clone();
                 std::thread::spawn(move || {
                     let result = generate_summary(&prompt, &assistant_text);
-                    let fallback_text = if prompt.is_empty() { assistant_text } else { prompt };
+                    let fallback_text = if prompt.is_empty() {
+                        assistant_text
+                    } else {
+                        prompt
+                    };
                     let _ = tx.send((sid, fallback_text, result));
                 });
             }
@@ -369,7 +387,12 @@ impl App {
             (!s.initial_prompt.is_empty() || !s.first_assistant_text.is_empty())
                 && !self.summaries.contains_key(&s.session_id)
                 && !self.pending_summaries.contains(&s.session_id)
-                && self.summary_retries.get(&s.session_id).copied().unwrap_or(0) < MAX_SUMMARY_RETRIES
+                && self
+                    .summary_retries
+                    .get(&s.session_id)
+                    .copied()
+                    .unwrap_or(0)
+                    < MAX_SUMMARY_RETRIES
         })
     }
 
@@ -379,7 +402,9 @@ impl App {
             return (0..self.sessions.len()).collect();
         }
         let query = self.filter_text.to_lowercase();
-        self.sessions.iter().enumerate()
+        self.sessions
+            .iter()
+            .enumerate()
             .filter(|(_, s)| Self::session_matches(s, &query))
             .map(|(i, _)| i)
             .collect()
@@ -423,7 +448,9 @@ impl App {
 
     pub fn select_next(&mut self) {
         let visible = self.visible_indices();
-        if visible.is_empty() { return; }
+        if visible.is_empty() {
+            return;
+        }
         if let Some(pos) = visible.iter().position(|&i| i == self.selected) {
             if pos + 1 < visible.len() {
                 self.selected = visible[pos + 1];
@@ -435,7 +462,9 @@ impl App {
 
     pub fn select_prev(&mut self) {
         let visible = self.visible_indices();
-        if visible.is_empty() { return; }
+        if visible.is_empty() {
+            return;
+        }
         if let Some(pos) = visible.iter().position(|&i| i == self.selected) {
             if pos > 0 {
                 self.selected = visible[pos - 1];
@@ -482,7 +511,9 @@ impl App {
         }
 
         // First press — ask for confirmation
-        let name = self.summaries.get(&session.session_id)
+        let name = self
+            .summaries
+            .get(&session.session_id)
             .cloned()
             .unwrap_or_else(|| format!("PID {}", session.pid));
         self.kill_confirm = Some((self.selected, Instant::now()));
@@ -500,7 +531,8 @@ impl App {
 
         for orphan in &self.orphan_ports {
             // 1. Verify PID still listens on the expected port
-            let still_listening = fresh_ports.get(&orphan.pid)
+            let still_listening = fresh_ports
+                .get(&orphan.pid)
                 .is_some_and(|ports| ports.contains(&orphan.port));
             if !still_listening {
                 continue;
@@ -544,7 +576,12 @@ impl App {
 
     fn jump_via_tmux(&self, target_pid: u32) -> Option<String> {
         let output = std::process::Command::new("tmux")
-            .args(["list-panes", "-a", "-F", "#{pane_pid} #{session_name}:#{window_index}.#{pane_index}"])
+            .args([
+                "list-panes",
+                "-a",
+                "-F",
+                "#{pane_pid} #{session_name}:#{window_index}.#{pane_index}",
+            ])
             .output()
             .ok()?;
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -601,7 +638,10 @@ impl App {
             let dots = match (std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_millis() / 500) % 3 {
+                .as_millis()
+                / 500)
+                % 3
+            {
                 0 => ".",
                 1 => "..",
                 _ => "...",
@@ -629,7 +669,10 @@ fn generate_summary(prompt: &str, assistant_text: &str) -> Option<String> {
     let assistant_part: String = assistant_text.chars().take(200).collect();
 
     let context = if !user_part.is_empty() && !assistant_part.is_empty() {
-        format!("User message: {}\n\nAssistant response: {}", user_part, assistant_part)
+        format!(
+            "User message: {}\n\nAssistant response: {}",
+            user_part, assistant_part
+        )
     } else if !assistant_part.is_empty() {
         format!("Assistant response: {}", assistant_part)
     } else {
@@ -681,9 +724,7 @@ fn generate_summary(prompt: &str, assistant_text: &str) -> Option<String> {
 
     match result {
         Ok(output) if output.status.success() => {
-            let raw = String::from_utf8_lossy(&output.stdout)
-                .trim()
-                .to_string();
+            let raw = String::from_utf8_lossy(&output.stdout).trim().to_string();
             let lower = raw.to_lowercase();
             // Reject empty, too long, generic, or prompt-echo outputs
             if raw.is_empty()
@@ -724,9 +765,7 @@ fn load_summary_cache() -> HashMap<String, String> {
                 serde_json::from_str(&content).unwrap_or_default();
             // Purge polluted or old truncated-fallback entries so they regenerate
             let before = cache.len();
-            cache.retain(|_, v| {
-                !v.contains("You are a conversation tit") && !v.ends_with('…')
-            });
+            cache.retain(|_, v| !v.contains("You are a conversation tit") && !v.ends_with('…'));
             if cache.len() < before {
                 // Persist cleaned cache
                 let _ = std::fs::create_dir_all(cache_dir());
@@ -800,10 +839,7 @@ const RATE_LIMITED_PCT: f64 = 90.0;
 /// Promote Waiting sessions to RateLimited when a rate limit from the SAME
 /// agent CLI is over `RATE_LIMITED_PCT`. Matching on source avoids a
 /// Claude-only saturation freezing Codex sessions and vice versa.
-fn promote_waiting_to_rate_limited(
-    sessions: &mut [AgentSession],
-    rate_limits: &[RateLimitInfo],
-) {
+fn promote_waiting_to_rate_limited(sessions: &mut [AgentSession], rate_limits: &[RateLimitInfo]) {
     if rate_limits.is_empty() {
         return;
     }

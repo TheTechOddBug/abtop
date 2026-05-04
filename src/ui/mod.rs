@@ -3,13 +3,13 @@ mod context;
 mod footer;
 mod header;
 mod help;
-mod view_menu;
 mod mcp;
 mod ports;
 mod projects;
 mod quota;
 mod sessions;
 mod tokens;
+mod view_menu;
 
 use crate::app::App;
 use crate::locale::t;
@@ -23,17 +23,18 @@ use ratatui::Frame;
 // ── braille graph symbols — from btop_draw.cpp ──────────────────────────────
 // 5x5 lookup: [prev_val * 5 + cur_val], values 0-4
 pub(crate) const BRAILLE_UP: [&str; 25] = [
-    " ", "⢀", "⢠", "⢰", "⢸",
-    "⡀", "⣀", "⣠", "⣰", "⣸",
-    "⡄", "⣄", "⣤", "⣴", "⣼",
-    "⡆", "⣆", "⣦", "⣶", "⣾",
-    "⡇", "⣇", "⣧", "⣷", "⣿",
+    " ", "⢀", "⢠", "⢰", "⢸", "⡀", "⣀", "⣠", "⣰", "⣸", "⡄", "⣄", "⣤", "⣴", "⣼", "⡆", "⣆", "⣦", "⣶",
+    "⣾", "⡇", "⣇", "⣧", "⣷", "⣿",
 ];
 
 // ── gradient interpolation (btop-faithful: linear RGB, 101 steps) ────────────
 
 /// Generate 101-step gradient from start→mid→end, matching btop's generateGradients().
-pub(crate) fn make_gradient(start: (u8, u8, u8), mid: (u8, u8, u8), end: (u8, u8, u8)) -> [Color; 101] {
+pub(crate) fn make_gradient(
+    start: (u8, u8, u8),
+    mid: (u8, u8, u8),
+    end: (u8, u8, u8),
+) -> [Color; 101] {
     let mut out = [Color::Reset; 101];
     #[allow(clippy::needless_range_loop)]
     for i in 0..=100 {
@@ -46,7 +47,11 @@ pub(crate) fn make_gradient(start: (u8, u8, u8), mid: (u8, u8, u8), end: (u8, u8
         let r = s.0 as i32 + t as i32 * (e.0 as i32 - s.0 as i32) / range;
         let g = s.1 as i32 + t as i32 * (e.1 as i32 - s.1 as i32) / range;
         let b = s.2 as i32 + t as i32 * (e.2 as i32 - s.2 as i32) / range;
-        out[i] = Color::Rgb(r.clamp(0, 255) as u8, g.clamp(0, 255) as u8, b.clamp(0, 255) as u8);
+        out[i] = Color::Rgb(
+            r.clamp(0, 255) as u8,
+            g.clamp(0, 255) as u8,
+            b.clamp(0, 255) as u8,
+        );
     }
     out
 }
@@ -60,7 +65,12 @@ pub(crate) fn grad_at(gradient: &[Color; 101], pct: f64) -> Color {
 // ── btop-style meter bar using ■ character ───────────────────────────────────
 
 /// Render a btop-style meter: filled ■ with gradient color, empty ■ with meter_bg.
-pub(crate) fn meter_bar(pct: f64, width: usize, gradient: &[Color; 101], meter_bg: Color) -> Vec<Span<'static>> {
+pub(crate) fn meter_bar(
+    pct: f64,
+    width: usize,
+    gradient: &[Color; 101],
+    meter_bg: Color,
+) -> Vec<Span<'static>> {
     if width == 0 {
         return Vec::new();
     }
@@ -83,7 +93,12 @@ pub(crate) fn meter_bar(pct: f64, width: usize, gradient: &[Color; 101], meter_b
 
 /// Meter bar showing remaining quota: filled = remaining, color reflects urgency.
 /// When remaining is high → green (safe), when low → red (danger).
-pub(crate) fn remaining_bar(remaining_pct: f64, width: usize, gradient: &[Color; 101], meter_bg: Color) -> Vec<Span<'static>> {
+pub(crate) fn remaining_bar(
+    remaining_pct: f64,
+    width: usize,
+    gradient: &[Color; 101],
+    meter_bg: Color,
+) -> Vec<Span<'static>> {
     if width == 0 {
         return Vec::new();
     }
@@ -108,7 +123,12 @@ pub(crate) fn remaining_bar(remaining_pct: f64, width: usize, gradient: &[Color;
 // ── braille sparkline ────────────────────────────────────────────────────────
 
 /// Render a braille sparkline from data points (0.0–1.0), colored with gradient.
-pub(crate) fn braille_sparkline(data: &[f64], width: usize, gradient: &[Color; 101], graph_text: Color) -> Vec<Span<'static>> {
+pub(crate) fn braille_sparkline(
+    data: &[f64],
+    width: usize,
+    gradient: &[Color; 101],
+    graph_text: Color,
+) -> Vec<Span<'static>> {
     let mut spans = Vec::new();
     if data.is_empty() || width == 0 {
         for _ in 0..width {
@@ -218,17 +238,26 @@ pub(crate) fn braille_graph_multirow(
 
 // ── btop-style block with notch title: ──┐¹title┌────── ─────────────────────
 
-pub(crate) fn btop_block(title: &str, number: &str, box_color: Color, theme: &Theme) -> Block<'static> {
+pub(crate) fn btop_block(
+    title: &str,
+    number: &str,
+    box_color: Color,
+    theme: &Theme,
+) -> Block<'static> {
     Block::default()
         .title(Line::from(vec![
             Span::styled("┐", Style::default().fg(box_color)),
             Span::styled(
                 number.to_string(),
-                Style::default().fg(theme.hi_fg).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.hi_fg)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 title.to_string(),
-                Style::default().fg(theme.title).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.title)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::styled("┌", Style::default().fg(box_color)),
         ]))
@@ -264,33 +293,62 @@ pub fn draw(f: &mut Frame, app: &App) {
         let msg = vec![
             Line::from(Span::styled(
                 t("term.too_small"),
-                Style::default().fg(theme.main_fg).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.main_fg)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(vec![
-                Span::styled(format!("{} ", t("term.width")), Style::default().fg(theme.main_fg)),
+                Span::styled(
+                    format!("{} ", t("term.width")),
+                    Style::default().fg(theme.main_fg),
+                ),
                 Span::styled(
                     w.to_string(),
-                    Style::default().fg(if w < MIN_WIDTH { Color::Red } else { Color::Green }),
+                    Style::default().fg(if w < MIN_WIDTH {
+                        Color::Red
+                    } else {
+                        Color::Green
+                    }),
                 ),
-                Span::styled(format!(" {} ", t("term.height")), Style::default().fg(theme.main_fg)),
+                Span::styled(
+                    format!(" {} ", t("term.height")),
+                    Style::default().fg(theme.main_fg),
+                ),
                 Span::styled(
                     h.to_string(),
-                    Style::default().fg(if h < MIN_HEIGHT { Color::Red } else { Color::Green }),
+                    Style::default().fg(if h < MIN_HEIGHT {
+                        Color::Red
+                    } else {
+                        Color::Green
+                    }),
                 ),
             ]),
             Line::from(""),
             Line::from(Span::styled(
                 t("term.needed"),
-                Style::default().fg(theme.main_fg).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.main_fg)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(Span::styled(
-                format!("{} {}  {} {}", t("term.width"), MIN_WIDTH, t("term.height"), MIN_HEIGHT),
+                format!(
+                    "{} {}  {} {}",
+                    t("term.width"),
+                    MIN_WIDTH,
+                    t("term.height"),
+                    MIN_HEIGHT
+                ),
                 Style::default().fg(theme.main_fg),
             )),
         ];
         let block = Paragraph::new(msg).alignment(Alignment::Center);
         let y = h / 2 - 2;
-        let msg_area = Rect { x: 0, y, width: w, height: 5.min(h.saturating_sub(y)) };
+        let msg_area = Rect {
+            x: 0,
+            y,
+            width: w,
+            height: 5.min(h.saturating_sub(y)),
+        };
         f.render_widget(block, msg_area);
         return;
     }
@@ -300,7 +358,8 @@ pub fn draw(f: &mut Frame, app: &App) {
     const CONTEXT_MIN: u16 = 5;
     const FIXED: u16 = 2; // header + footer
 
-    let any_mid = app.show_quota || app.show_tokens || app.show_projects || app.show_ports || app.show_mcp;
+    let any_mid =
+        app.show_quota || app.show_tokens || app.show_projects || app.show_ports || app.show_mcp;
 
     let mid_h_ideal: u16 = 8;
     let sessions_ideal: u16 = if app.show_sessions {
@@ -315,13 +374,17 @@ pub fn draw(f: &mut Frame, app: &App) {
     let mid_reserved = if any_mid { MID_MIN.min(available) } else { 0 };
     let sessions_budget = available.saturating_sub(mid_reserved);
     let sessions_h = if app.show_sessions {
-        sessions_ideal.min(sessions_budget).max(5.min(sessions_budget))
+        sessions_ideal
+            .min(sessions_budget)
+            .max(5.min(sessions_budget))
     } else {
         0
     };
     let after_sessions = available.saturating_sub(sessions_h);
     let mid_h = if any_mid {
-        mid_h_ideal.min(after_sessions).max(mid_reserved.min(after_sessions))
+        mid_h_ideal
+            .min(after_sessions)
+            .max(mid_reserved.min(after_sessions))
     } else {
         0
     };
@@ -336,15 +399,19 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     let mut constraints = [Constraint::Length(0); 5];
     let mut n = 0;
-    constraints[n] = Constraint::Length(1); n += 1; // header
+    constraints[n] = Constraint::Length(1);
+    n += 1; // header
     if context_h > 0 {
-        constraints[n] = Constraint::Length(context_h); n += 1;
+        constraints[n] = Constraint::Length(context_h);
+        n += 1;
     }
     if mid_h > 0 {
-        constraints[n] = Constraint::Length(mid_h); n += 1;
+        constraints[n] = Constraint::Length(mid_h);
+        n += 1;
     }
     if sessions_h > 0 {
-        constraints[n] = Constraint::Min(sessions_h); n += 1;
+        constraints[n] = Constraint::Min(sessions_h);
+        n += 1;
     }
     constraints[n] = Constraint::Length(1); // footer
     n += 1;
@@ -365,13 +432,24 @@ pub fn draw(f: &mut Frame, app: &App) {
 
     if mid_h > 0 {
         let mut mid_constraints: Vec<Constraint> = Vec::new();
-        if app.show_quota { mid_constraints.push(Constraint::Length(0)); }
-        if app.show_tokens { mid_constraints.push(Constraint::Length(0)); }
-        if app.show_projects { mid_constraints.push(Constraint::Length(0)); }
-        if app.show_ports { mid_constraints.push(Constraint::Length(0)); }
-        if app.show_mcp { mid_constraints.push(Constraint::Length(0)); }
+        if app.show_quota {
+            mid_constraints.push(Constraint::Length(0));
+        }
+        if app.show_tokens {
+            mid_constraints.push(Constraint::Length(0));
+        }
+        if app.show_projects {
+            mid_constraints.push(Constraint::Length(0));
+        }
+        if app.show_ports {
+            mid_constraints.push(Constraint::Length(0));
+        }
+        if app.show_mcp {
+            mid_constraints.push(Constraint::Length(0));
+        }
         let count = mid_constraints.len() as u32;
-        let mid_constraints: Vec<Constraint> = (0..count).map(|_| Constraint::Ratio(1, count)).collect();
+        let mid_constraints: Vec<Constraint> =
+            (0..count).map(|_| Constraint::Ratio(1, count)).collect();
 
         let mid_panels = Layout::default()
             .direction(Direction::Horizontal)
@@ -379,11 +457,25 @@ pub fn draw(f: &mut Frame, app: &App) {
             .split(chunks[idx]);
 
         let mut mi = 0;
-        if app.show_quota { quota::draw_quota_panel(f, app, mid_panels[mi], theme); mi += 1; }
-        if app.show_tokens { tokens::draw_tokens_panel(f, app, mid_panels[mi], theme); mi += 1; }
-        if app.show_projects { projects::draw_projects_panel(f, app, mid_panels[mi], theme); mi += 1; }
-        if app.show_ports { ports::draw_ports_panel(f, app, mid_panels[mi], theme); mi += 1; }
-        if app.show_mcp { mcp::draw_mcp_panel(f, app, mid_panels[mi], theme); }
+        if app.show_quota {
+            quota::draw_quota_panel(f, app, mid_panels[mi], theme);
+            mi += 1;
+        }
+        if app.show_tokens {
+            tokens::draw_tokens_panel(f, app, mid_panels[mi], theme);
+            mi += 1;
+        }
+        if app.show_projects {
+            projects::draw_projects_panel(f, app, mid_panels[mi], theme);
+            mi += 1;
+        }
+        if app.show_ports {
+            ports::draw_ports_panel(f, app, mid_panels[mi], theme);
+            mi += 1;
+        }
+        if app.show_mcp {
+            mcp::draw_mcp_panel(f, app, mid_panels[mi], theme);
+        }
         idx += 1;
     }
 

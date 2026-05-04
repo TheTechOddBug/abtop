@@ -31,8 +31,16 @@ pub(crate) fn draw_projects_panel(f: &mut Frame, app: &App, area: Rect, theme: &
         } else {
             session.git_branch.clone()
         };
-        let used_grad = make_gradient(theme.used_grad.start, theme.used_grad.mid, theme.used_grad.end);
-        let branch_color = if session.git_branch.is_empty() { theme.inactive_fg } else { theme.main_fg };
+        let used_grad = make_gradient(
+            theme.used_grad.start,
+            theme.used_grad.mid,
+            theme.used_grad.end,
+        );
+        let branch_color = if session.git_branch.is_empty() {
+            theme.inactive_fg
+        } else {
+            theme.main_fg
+        };
         let mut branch_spans = vec![
             Span::styled("   ", Style::default()),
             Span::styled(branch, Style::default().fg(branch_color)),
@@ -55,7 +63,10 @@ pub(crate) fn draw_projects_panel(f: &mut Frame, app: &App, area: Rect, theme: &
                 ));
             }
         } else {
-            branch_spans.push(Span::styled(format!(" {}", clean), Style::default().fg(theme.proc_misc)));
+            branch_spans.push(Span::styled(
+                format!(" {}", clean),
+                Style::default().fg(theme.proc_misc),
+            ));
         }
         lines.push(Line::from(branch_spans));
     }

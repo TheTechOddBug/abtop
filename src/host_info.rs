@@ -40,7 +40,11 @@ impl HostSampler {
         let cpu_pct = self.sample_cpu()?;
         let mem_pct = sample_mem()?;
         let load1 = sample_load()?;
-        Some(HostMetrics { cpu_pct, mem_pct, load1 })
+        Some(HostMetrics {
+            cpu_pct,
+            mem_pct,
+            load1,
+        })
     }
 
     fn sample_cpu(&mut self) -> Option<f64> {
@@ -50,7 +54,11 @@ impl HostSampler {
                 let busy_d = now.busy.saturating_sub(prev.busy) as f64;
                 let idle_d = now.idle.saturating_sub(prev.idle) as f64;
                 let total = busy_d + idle_d;
-                if total > 0.0 { (busy_d / total) * 100.0 } else { 0.0 }
+                if total > 0.0 {
+                    (busy_d / total) * 100.0
+                } else {
+                    0.0
+                }
             }
             None => 0.0,
         };
@@ -69,7 +77,9 @@ fn read_cpu_times() -> Option<CpuTimes> {
     }
     let nums: Vec<u64> = fields.filter_map(|f| f.parse().ok()).collect();
     // Layout: user nice system idle iowait irq softirq steal guest guest_nice
-    if nums.len() < 4 { return None; }
+    if nums.len() < 4 {
+        return None;
+    }
     let user = nums[0];
     let nice = nums[1];
     let system = nums[2];
@@ -95,9 +105,13 @@ fn sample_mem() -> Option<f64> {
         } else if let Some(rest) = line.strip_prefix("MemAvailable:") {
             avail = parse_kb(rest)?;
         }
-        if total > 0 && avail > 0 { break; }
+        if total > 0 && avail > 0 {
+            break;
+        }
     }
-    if total == 0 { return None; }
+    if total == 0 {
+        return None;
+    }
     let used = total.saturating_sub(avail) as f64;
     Some((used / total as f64) * 100.0)
 }
@@ -114,11 +128,17 @@ fn sample_load() -> Option<f64> {
 }
 
 #[cfg(not(target_os = "linux"))]
-fn read_cpu_times() -> Option<CpuTimes> { None }
+fn read_cpu_times() -> Option<CpuTimes> {
+    None
+}
 #[cfg(not(target_os = "linux"))]
-fn sample_mem() -> Option<f64> { None }
+fn sample_mem() -> Option<f64> {
+    None
+}
 #[cfg(not(target_os = "linux"))]
-fn sample_load() -> Option<f64> { None }
+fn sample_load() -> Option<f64> {
+    None
+}
 
 /// Aggregate per-session metrics into a single agent-wide summary.
 #[derive(Debug, Clone, Copy, Default)]
@@ -141,9 +161,19 @@ impl AgentAggregate {
                 ctx_sum += s.context_percent;
                 ctx_n += 1;
             }
-            if s.status.is_active() { active += 1; }
+            if s.status.is_active() {
+                active += 1;
+            }
         }
-        let avg_ctx_pct = if ctx_n > 0 { ctx_sum / ctx_n as f64 } else { 0.0 };
-        Self { mem_mb, avg_ctx_pct, active_count: active }
+        let avg_ctx_pct = if ctx_n > 0 {
+            ctx_sum / ctx_n as f64
+        } else {
+            0.0
+        };
+        Self {
+            mem_mb,
+            avg_ctx_pct,
+            active_count: active,
+        }
     }
 }

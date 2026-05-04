@@ -1,5 +1,8 @@
 use super::process::{self, ProcInfo};
-use crate::model::{AgentSession, ChildProcess, FileAccess, FileOp, SessionFile, SessionStatus, SubAgent, MAX_FILE_ACCESSES};
+use crate::model::{
+    AgentSession, ChildProcess, FileAccess, FileOp, SessionFile, SessionStatus, SubAgent,
+    MAX_FILE_ACCESSES,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
@@ -7,7 +10,11 @@ use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 #[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-#[cfg(all(not(target_os = "linux"), not(target_vendor = "apple"), not(target_os = "windows")))]
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_vendor = "apple"),
+    not(target_os = "windows")
+))]
 use std::process::Command;
 
 /// A single Claude config directory (sessions + projects + transcripts).
@@ -249,7 +256,11 @@ impl ClaudeCollector {
             map_pid_to_sysinfo_open_paths(pids)
         }
 
-        #[cfg(all(not(target_os = "linux"), not(target_vendor = "apple"), not(target_os = "windows")))]
+        #[cfg(all(
+            not(target_os = "linux"),
+            not(target_vendor = "apple"),
+            not(target_os = "windows")
+        ))]
         {
             map_pid_to_lsof_open_paths(pids)
         }
@@ -312,7 +323,9 @@ impl ClaudeCollector {
             return None;
         }
 
-        let project_name = process::last_path_segment(&sf.cwd).unwrap_or("?").to_string();
+        let project_name = process::last_path_segment(&sf.cwd)
+            .unwrap_or("?")
+            .to_string();
 
         let proc = process_info.get(&sf.pid);
         let mem_mb = proc.map(|p| p.rss_kb / 1024).unwrap_or(0);
@@ -380,7 +393,8 @@ impl ClaudeCollector {
                     prev.token_history.extend(delta.token_history);
                     if prev.tool_calls.len() < 500 {
                         let remaining = 500 - prev.tool_calls.len();
-                        prev.tool_calls.extend(delta.tool_calls.into_iter().take(remaining));
+                        prev.tool_calls
+                            .extend(delta.tool_calls.into_iter().take(remaining));
                     }
                     // Only overwrite turn-state when the delta actually
                     // observed new user/assistant lines. A no-op tick (file
@@ -818,7 +832,11 @@ fn map_pid_to_sysinfo_open_paths(pids: &[u32]) -> HashMap<u32, ProcessOpenPaths>
     map
 }
 
-#[cfg(all(not(target_os = "linux"), not(target_vendor = "apple"), not(target_os = "windows")))]
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_vendor = "apple"),
+    not(target_os = "windows")
+))]
 fn map_pid_to_lsof_open_paths(pids: &[u32]) -> HashMap<u32, ProcessOpenPaths> {
     let pid_args: Vec<String> = pids.iter().map(|p| format!("-p{}", p)).collect();
     let mut args = vec!["-F", "ftn"];
@@ -832,7 +850,10 @@ fn map_pid_to_lsof_open_paths(pids: &[u32]) -> HashMap<u32, ProcessOpenPaths> {
         .unwrap_or_default()
 }
 
-#[cfg_attr(any(target_os = "linux", target_vendor = "apple", target_os = "windows"), allow(dead_code))]
+#[cfg_attr(
+    any(target_os = "linux", target_vendor = "apple", target_os = "windows"),
+    allow(dead_code)
+)]
 fn parse_lsof_process_info(output: &str) -> HashMap<u32, ProcessOpenPaths> {
     let mut map: HashMap<u32, ProcessOpenPaths> = HashMap::new();
     let mut current_pid: Option<u32> = None;
@@ -1282,7 +1303,8 @@ fn parse_transcript(path: &Path, from_offset: u64) -> TranscriptResult {
                 bytes_read += n as u64;
                 {
                     // Parse timestamp from any entry (for tool duration calculation)
-                    let entry_ts_ms = val.get("timestamp")
+                    let entry_ts_ms = val
+                        .get("timestamp")
                         .and_then(|t| t.as_str())
                         .and_then(|ts| chrono::DateTime::parse_from_rfc3339(ts).ok())
                         .map(|dt| dt.timestamp_millis().max(0) as u64)
@@ -1427,10 +1449,14 @@ fn parse_transcript(path: &Path, from_offset: u64) -> TranscriptResult {
                         Some("user") => {
                             // Compute tool call duration: time from assistant turn to this user turn
                             if entry_ts_ms > 0 && result.last_assistant_ts_ms > 0 {
-                                let duration = entry_ts_ms.saturating_sub(result.last_assistant_ts_ms);
+                                let duration =
+                                    entry_ts_ms.saturating_sub(result.last_assistant_ts_ms);
                                 // Distribute duration across tool calls from that assistant turn
                                 // (approximation: divide equally among pending zero-duration calls)
-                                let pending: Vec<usize> = result.tool_calls.iter().enumerate()
+                                let pending: Vec<usize> = result
+                                    .tool_calls
+                                    .iter()
+                                    .enumerate()
                                     .rev()
                                     .take_while(|(_, tc)| tc.duration_ms == 0)
                                     .map(|(i, _)| i)
@@ -1510,9 +1536,8 @@ fn is_tool_result_user_msg(message: Option<&Value>) -> bool {
     if arr.is_empty() {
         return false;
     }
-    arr.iter().all(|block| {
-        block.get("type").and_then(|t| t.as_str()) == Some("tool_result")
-    })
+    arr.iter()
+        .all(|block| block.get("type").and_then(|t| t.as_str()) == Some("tool_result"))
 }
 
 fn encode_cwd_path(cwd: &str) -> String {
@@ -1778,10 +1803,13 @@ mod tests {
         // must return saw_turn=false so the cached pending/thinking markers
         // aren't clobbered by the default-zero timestamps.
         let mut file = tempfile::NamedTempFile::new().unwrap();
-        write_lines(&mut file, &[
-            r#"{"type":"user","timestamp":"2026-03-28T15:00:00Z","message":{"role":"user","content":"hi"}}"#,
-            r#"{"type":"assistant","timestamp":"2026-03-28T15:00:05Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"tool_use","name":"Edit","id":"t1","input":{"file_path":"x"}}]}}"#,
-        ]);
+        write_lines(
+            &mut file,
+            &[
+                r#"{"type":"user","timestamp":"2026-03-28T15:00:00Z","message":{"role":"user","content":"hi"}}"#,
+                r#"{"type":"assistant","timestamp":"2026-03-28T15:00:05Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"tool_use","name":"Edit","id":"t1","input":{"file_path":"x"}}]}}"#,
+            ],
+        );
         let file_len = std::fs::metadata(file.path()).unwrap().len();
 
         let result = parse_transcript(file.path(), file_len);
@@ -1798,9 +1826,10 @@ mod tests {
         // `summary` lines emitted on compaction) must also leave saw_turn
         // false, so the merge step preserves the cached turn state.
         let mut file = tempfile::NamedTempFile::new().unwrap();
-        write_lines(&mut file, &[
-            r#"{"type":"summary","summary":"compaction marker","leafUuid":"abc"}"#,
-        ]);
+        write_lines(
+            &mut file,
+            &[r#"{"type":"summary","summary":"compaction marker","leafUuid":"abc"}"#],
+        );
 
         let result = parse_transcript(file.path(), 0);
 
@@ -1821,11 +1850,14 @@ mod tests {
         //   3. assistant(next)     → last_user cleared (Wait)
         // Fix: skip tool_result wrappers when updating last_user_ts_ms.
         let mut file = tempfile::NamedTempFile::new().unwrap();
-        write_lines(&mut file, &[
-            r#"{"type":"user","timestamp":"2026-03-28T15:00:00Z","message":{"role":"user","content":"hi"}}"#,
-            r#"{"type":"assistant","timestamp":"2026-03-28T15:00:01Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"tool_use","name":"Bash","id":"t1","input":{"command":"ls"}}]}}"#,
-            r#"{"type":"user","timestamp":"2026-03-28T15:00:02Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"a\nb"}]}}"#,
-        ]);
+        write_lines(
+            &mut file,
+            &[
+                r#"{"type":"user","timestamp":"2026-03-28T15:00:00Z","message":{"role":"user","content":"hi"}}"#,
+                r#"{"type":"assistant","timestamp":"2026-03-28T15:00:01Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"tool_use","name":"Bash","id":"t1","input":{"command":"ls"}}]}}"#,
+                r#"{"type":"user","timestamp":"2026-03-28T15:00:02Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"a\nb"}]}}"#,
+            ],
+        );
 
         let result = parse_transcript(file.path(), 0);
 
@@ -1845,10 +1877,13 @@ mod tests {
         // closes a thinking window, last_user_ts_ms must be zero and
         // last_assistant_ts_ms must carry the assistant timestamp.
         let mut file = tempfile::NamedTempFile::new().unwrap();
-        write_lines(&mut file, &[
-            r#"{"type":"user","timestamp":"2026-03-28T15:00:00Z","message":{"role":"user","content":"hi"}}"#,
-            r#"{"type":"assistant","timestamp":"2026-03-28T15:00:05Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"tool_use","name":"Edit","id":"t1","input":{"file_path":"x"}}]}}"#,
-        ]);
+        write_lines(
+            &mut file,
+            &[
+                r#"{"type":"user","timestamp":"2026-03-28T15:00:00Z","message":{"role":"user","content":"hi"}}"#,
+                r#"{"type":"assistant","timestamp":"2026-03-28T15:00:05Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"tool_use","name":"Edit","id":"t1","input":{"file_path":"x"}}]}}"#,
+            ],
+        );
 
         let result = parse_transcript(file.path(), 0);
 
@@ -1863,10 +1898,13 @@ mod tests {
         // last_user_ts_ms should carry its timestamp so the UI can render
         // the live Think row.
         let mut file = tempfile::NamedTempFile::new().unwrap();
-        write_lines(&mut file, &[
-            r#"{"type":"assistant","timestamp":"2026-03-28T15:00:00Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"text","text":"ok"}]}}"#,
-            r#"{"type":"user","timestamp":"2026-03-28T15:00:10Z","message":{"role":"user","content":"next"}}"#,
-        ]);
+        write_lines(
+            &mut file,
+            &[
+                r#"{"type":"assistant","timestamp":"2026-03-28T15:00:00Z","message":{"model":"claude-sonnet-4-6","usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"text","text":"ok"}]}}"#,
+                r#"{"type":"user","timestamp":"2026-03-28T15:00:10Z","message":{"role":"user","content":"next"}}"#,
+            ],
+        );
 
         let result = parse_transcript(file.path(), 0);
 
@@ -2392,7 +2430,10 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
 
         assert_eq!(result.file_accesses.len(), MAX_FILE_ACCESSES);
         // Oldest `extra` entries must have been dropped, newest must survive.
-        assert_eq!(result.file_accesses[0].path, format!("src/file_{}.rs", extra));
+        assert_eq!(
+            result.file_accesses[0].path,
+            format!("src/file_{}.rs", extra)
+        );
         assert_eq!(
             result.file_accesses[MAX_FILE_ACCESSES - 1].path,
             format!("src/file_{}.rs", total - 1),
@@ -2655,8 +2696,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         let t = if secs_from_now >= 0 {
             std::time::SystemTime::now() + std::time::Duration::from_secs(secs_from_now as u64)
         } else {
-            std::time::SystemTime::now()
-                - std::time::Duration::from_secs((-secs_from_now) as u64)
+            std::time::SystemTime::now() - std::time::Duration::from_secs((-secs_from_now) as u64)
         };
         let f = std::fs::OpenOptions::new().write(true).open(path).unwrap();
         f.set_modified(t).unwrap();
@@ -3087,8 +3127,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         // adopt it.
         write_transcript(&projects, &cwd, sid_a, "a");
         write_transcript(&projects, &cwd, sid_b, "b");
-        let mystery =
-            write_transcript(&projects, &cwd, "newer-jsonl-someone-cleared", "mystery");
+        let mystery = write_transcript(&projects, &cwd, "newer-jsonl-someone-cleared", "mystery");
         set_mtime(&mystery, 0);
 
         let config = ConfigDir::new(profile.clone());

@@ -26,18 +26,66 @@ pub(crate) fn items(app: &App) -> Vec<ViewItem> {
     use ViewState::*;
     let bool_state = |b: bool| if b { On } else { Off };
     vec![
-        ViewItem { key: 'T', label: t("view.tree_view").leak(),       state: bool_state(app.tree_view) },
-        ViewItem { key: 'l', label: t("view.timeline").leak(),        state: bool_state(app.show_timeline) },
-        ViewItem { key: 'f', label: t("view.file_audit").leak(),      state: bool_state(app.show_file_audit) },
-        ViewItem { key: '1', label: t("view.context_panel").leak(),   state: bool_state(app.show_context) },
-        ViewItem { key: '2', label: t("view.quota_panel").leak(),     state: bool_state(app.show_quota) },
-        ViewItem { key: '3', label: t("view.tokens_panel").leak(),    state: bool_state(app.show_tokens) },
-        ViewItem { key: '4', label: t("view.projects_panel").leak(),  state: bool_state(app.show_projects) },
-        ViewItem { key: '5', label: t("view.ports_panel").leak(),     state: bool_state(app.show_ports) },
-        ViewItem { key: '6', label: t("view.sessions_panel").leak(),  state: bool_state(app.show_sessions) },
-        ViewItem { key: '7', label: t("view.mcp_servers_panel").leak(), state: bool_state(app.show_mcp) },
-        ViewItem { key: 'M', label: t("view.mcp_session_hide").leak(), state: bool_state(app.mcp_suppress_sessions) },
-        ViewItem { key: 't', label: t("view.cycle_theme").leak(),     state: Action },
+        ViewItem {
+            key: 'T',
+            label: t("view.tree_view").leak(),
+            state: bool_state(app.tree_view),
+        },
+        ViewItem {
+            key: 'l',
+            label: t("view.timeline").leak(),
+            state: bool_state(app.show_timeline),
+        },
+        ViewItem {
+            key: 'f',
+            label: t("view.file_audit").leak(),
+            state: bool_state(app.show_file_audit),
+        },
+        ViewItem {
+            key: '1',
+            label: t("view.context_panel").leak(),
+            state: bool_state(app.show_context),
+        },
+        ViewItem {
+            key: '2',
+            label: t("view.quota_panel").leak(),
+            state: bool_state(app.show_quota),
+        },
+        ViewItem {
+            key: '3',
+            label: t("view.tokens_panel").leak(),
+            state: bool_state(app.show_tokens),
+        },
+        ViewItem {
+            key: '4',
+            label: t("view.projects_panel").leak(),
+            state: bool_state(app.show_projects),
+        },
+        ViewItem {
+            key: '5',
+            label: t("view.ports_panel").leak(),
+            state: bool_state(app.show_ports),
+        },
+        ViewItem {
+            key: '6',
+            label: t("view.sessions_panel").leak(),
+            state: bool_state(app.show_sessions),
+        },
+        ViewItem {
+            key: '7',
+            label: t("view.mcp_servers_panel").leak(),
+            state: bool_state(app.show_mcp),
+        },
+        ViewItem {
+            key: 'M',
+            label: t("view.mcp_session_hide").leak(),
+            state: bool_state(app.mcp_suppress_sessions),
+        },
+        ViewItem {
+            key: 't',
+            label: t("view.cycle_theme").leak(),
+            state: Action,
+        },
     ]
 }
 
@@ -58,7 +106,9 @@ pub(crate) fn draw_view_overlay(f: &mut Frame, app: &App, theme: &Theme) {
         .title(
             Line::from(vec![Span::styled(
                 view_title.clone(),
-                Style::default().fg(theme.title).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.title)
+                    .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
         )
@@ -86,8 +136,16 @@ pub(crate) fn draw_view_overlay(f: &mut Frame, app: &App, theme: &Theme) {
             ViewState::Action => (action_str.clone(), Style::default().fg(theme.session_id)),
         };
         lines.push(Line::from(vec![
-            Span::styled(format!("  {}  ", item.key), Style::default().fg(theme.hi_fg).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("{:<22}", item.label), Style::default().fg(theme.main_fg)),
+            Span::styled(
+                format!("  {}  ", item.key),
+                Style::default()
+                    .fg(theme.hi_fg)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("{:<22}", item.label),
+                Style::default().fg(theme.main_fg),
+            ),
             Span::styled(state_str, state_style),
         ]));
     }

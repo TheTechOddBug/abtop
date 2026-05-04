@@ -11,24 +11,24 @@ fn get_entries() -> Vec<(String, String)> {
     vec![
         (t("help.navigation"), String::new()),
         ("  ↑↓ / j k".to_string(), t("help.select_session")),
-        ("  ↵".to_string(),        t("help.jump_tmux")),
-        ("  /".to_string(),        t("help.filter")),
-        ("  Esc".to_string(),      t("help.clear_filter")),
+        ("  ↵".to_string(), t("help.jump_tmux")),
+        ("  /".to_string(), t("help.filter")),
+        ("  Esc".to_string(), t("help.clear_filter")),
         (t("help.actions"), String::new()),
-        ("  x".to_string(),        t("help.kill_session")),
-        ("  X".to_string(),        t("help.kill_orphans")),
-        ("  r".to_string(),        t("help.refresh")),
-        ("  q".to_string(),        t("help.quit")),
+        ("  x".to_string(), t("help.kill_session")),
+        ("  X".to_string(), t("help.kill_orphans")),
+        ("  r".to_string(), t("help.refresh")),
+        ("  q".to_string(), t("help.quit")),
         (t("help.views"), String::new()),
-        ("  v".to_string(),        t("help.view_menu")),
-        ("  c".to_string(),        t("help.open_config")),
-        ("  t / T".to_string(),    t("help.cycle_theme")),
-        ("  l".to_string(),        t("help.toggle_timeline")),
-        ("  f".to_string(),        t("help.toggle_file_audit")),
-        ("  1-7".to_string(),      t("help.toggle_panels")),
-        ("  M".to_string(),        t("help.mcp_suppress")),
+        ("  v".to_string(), t("help.view_menu")),
+        ("  c".to_string(), t("help.open_config")),
+        ("  t / T".to_string(), t("help.cycle_theme")),
+        ("  l".to_string(), t("help.toggle_timeline")),
+        ("  f".to_string(), t("help.toggle_file_audit")),
+        ("  1-7".to_string(), t("help.toggle_panels")),
+        ("  M".to_string(), t("help.mcp_suppress")),
         (t("help.help"), String::new()),
-        ("  ?".to_string(),        t("help.this_help")),
+        ("  ?".to_string(), t("help.this_help")),
     ]
 }
 
@@ -49,7 +49,9 @@ pub(crate) fn draw_help_overlay(f: &mut Frame, theme: &Theme) {
         .title(
             Line::from(vec![Span::styled(
                 help_title.clone(),
-                Style::default().fg(theme.title).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.title)
+                    .add_modifier(Modifier::BOLD),
             )])
             .alignment(Alignment::Center),
         )
@@ -70,7 +72,9 @@ pub(crate) fn draw_help_overlay(f: &mut Frame, theme: &Theme) {
         if desc.is_empty() {
             lines.push(Line::from(Span::styled(
                 key,
-                Style::default().fg(theme.title).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(theme.title)
+                    .add_modifier(Modifier::BOLD),
             )));
         } else {
             lines.push(Line::from(vec![

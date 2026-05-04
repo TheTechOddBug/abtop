@@ -37,14 +37,20 @@ pub(crate) fn draw_mcp_panel(f: &mut Frame, app: &App, area: Rect, theme: &Theme
         return;
     }
 
-    let proc_grad = make_gradient(theme.proc_grad.start, theme.proc_grad.mid, theme.proc_grad.end);
+    let proc_grad = make_gradient(
+        theme.proc_grad.start,
+        theme.proc_grad.mid,
+        theme.proc_grad.end,
+    );
     let now = SystemTime::now();
     let default_label = t("mcp.default");
 
     for server in &app.mcp_servers {
         let active = server.active_count(now, ACTIVE_MTIME_SECS);
         let total = server.rollouts.len();
-        let last_age = server.latest_mtime().and_then(|m| now.duration_since(m).ok());
+        let last_age = server
+            .latest_mtime()
+            .and_then(|m| now.duration_since(m).ok());
 
         let active_color = if active > 0 {
             grad_at(&proc_grad, 100.0)
@@ -70,7 +76,10 @@ pub(crate) fn draw_mcp_panel(f: &mut Frame, app: &App, area: Rect, theme: &Theme
         lines.push(Line::from(vec![
             Span::styled(parent_label_text, Style::default().fg(theme.main_fg)),
             Span::styled(profile_padded, Style::default().fg(theme.session_id)),
-            Span::styled(format!("{} ", count_text), Style::default().fg(active_color)),
+            Span::styled(
+                format!("{} ", count_text),
+                Style::default().fg(active_color),
+            ),
             Span::styled(last_text, Style::default().fg(theme.inactive_fg)),
         ]));
     }

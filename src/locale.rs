@@ -3,8 +3,14 @@ use std::env;
 use std::sync::LazyLock;
 
 static CURRENT_LANG: LazyLock<&str> = LazyLock::new(|| {
-    let lang = env::var("ABTOP_LANG").or_else(|_| env::var("LANG")).unwrap_or_default();
-    if lang.to_lowercase().starts_with("zh") { "zh-CN" } else { "en" }
+    let lang = env::var("ABTOP_LANG")
+        .or_else(|_| env::var("LANG"))
+        .unwrap_or_default();
+    if lang.to_lowercase().starts_with("zh") {
+        "zh-CN"
+    } else {
+        "en"
+    }
 });
 
 static LOCALE_EN: LazyLock<std::collections::HashMap<&str, &str>> = LazyLock::new(|| {
@@ -112,8 +118,14 @@ static LOCALE_EN: LazyLock<std::collections::HashMap<&str, &str>> = LazyLock::ne
     m.insert("help.cycle_theme", "cycle theme / toggle tree");
     m.insert("help.toggle_timeline", "toggle timeline");
     m.insert("help.toggle_file_audit", "toggle file audit");
-    m.insert("help.toggle_panels", "toggle panels (context/quota/tokens/projects/ports/sessions/mcp)");
-    m.insert("help.mcp_suppress", "toggle mcp-server suppression in sessions panel");
+    m.insert(
+        "help.toggle_panels",
+        "toggle panels (context/quota/tokens/projects/ports/sessions/mcp)",
+    );
+    m.insert(
+        "help.mcp_suppress",
+        "toggle mcp-server suppression in sessions panel",
+    );
     m.insert("help.this_help", "this help");
 
     // Footer
@@ -344,7 +356,10 @@ static LOCALE_ZH: LazyLock<std::collections::HashMap<&str, &str>> = LazyLock::ne
     m.insert("help.cycle_theme", "切换主题 / 切换树视图");
     m.insert("help.toggle_timeline", "切换时间线");
     m.insert("help.toggle_file_audit", "切换文件审计");
-    m.insert("help.toggle_panels", "切换面板 (上下文/配额/令牌/项目/端口/会话/MCP)");
+    m.insert(
+        "help.toggle_panels",
+        "切换面板 (上下文/配额/令牌/项目/端口/会话/MCP)",
+    );
     m.insert("help.mcp_suppress", "切换会话面板中的 MCP 服务器隐藏");
     m.insert("help.this_help", "显示帮助");
 
@@ -473,8 +488,14 @@ static LOCALE_ZH: LazyLock<std::collections::HashMap<&str, &str>> = LazyLock::ne
 
 pub fn t(key: &str) -> String {
     if *CURRENT_LANG == "zh-CN" {
-        LOCALE_ZH.get(key).map(|s| s.to_string()).unwrap_or_else(|| key.to_string())
+        LOCALE_ZH
+            .get(key)
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| key.to_string())
     } else {
-        LOCALE_EN.get(key).map(|s| s.to_string()).unwrap_or_else(|| key.to_string())
+        LOCALE_EN
+            .get(key)
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| key.to_string())
     }
 }

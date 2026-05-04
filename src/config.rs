@@ -80,13 +80,13 @@ pub fn load_config() -> AppConfig {
             let val = val.trim_matches('"').trim_matches('\'');
             match key {
                 "theme" => config.theme = val.to_string(),
-                "show_context"  => config.panels.context  = parse_bool(val).unwrap_or(true),
-                "show_quota"    => config.panels.quota    = parse_bool(val).unwrap_or(true),
-                "show_tokens"   => config.panels.tokens   = parse_bool(val).unwrap_or(true),
+                "show_context" => config.panels.context = parse_bool(val).unwrap_or(true),
+                "show_quota" => config.panels.quota = parse_bool(val).unwrap_or(true),
+                "show_tokens" => config.panels.tokens = parse_bool(val).unwrap_or(true),
                 "show_projects" => config.panels.projects = parse_bool(val).unwrap_or(true),
-                "show_ports"    => config.panels.ports    = parse_bool(val).unwrap_or(true),
+                "show_ports" => config.panels.ports = parse_bool(val).unwrap_or(true),
                 "show_sessions" => config.panels.sessions = parse_bool(val).unwrap_or(true),
-                "show_mcp"      => config.panels.mcp      = parse_bool(val).unwrap_or(true),
+                "show_mcp" => config.panels.mcp = parse_bool(val).unwrap_or(true),
                 _ => {}
             }
         }
@@ -122,13 +122,13 @@ pub fn save_theme(name: &str) -> Result<(), String> {
 
 pub fn save_panel_visibility(panels: &PanelVisibility) -> Result<(), String> {
     write_with_updates(&[
-        ("show_context",  panels.context.to_string()),
-        ("show_quota",    panels.quota.to_string()),
-        ("show_tokens",   panels.tokens.to_string()),
+        ("show_context", panels.context.to_string()),
+        ("show_quota", panels.quota.to_string()),
+        ("show_tokens", panels.tokens.to_string()),
         ("show_projects", panels.projects.to_string()),
-        ("show_ports",    panels.ports.to_string()),
+        ("show_ports", panels.ports.to_string()),
         ("show_sessions", panels.sessions.to_string()),
-        ("show_mcp",      panels.mcp.to_string()),
+        ("show_mcp", panels.mcp.to_string()),
     ])
 }
 
@@ -156,9 +156,7 @@ fn rewrite_kv_lines(content: &str, updates: &[(&str, String)]) -> String {
     let mut found = vec![false; updates.len()];
     let mut out: Vec<String> = Vec::new();
     for line in content.lines() {
-        let line_key = line
-            .split_once('=')
-            .map(|(k, _)| k.trim().to_string());
+        let line_key = line.split_once('=').map(|(k, _)| k.trim().to_string());
         let mut replaced = false;
         if let Some(key) = line_key {
             if let Some(idx) = updates.iter().position(|(k, _)| *k == key) {
@@ -204,7 +202,9 @@ mod tests {
     fn parse_string_array_empty_and_malformed() {
         assert!(parse_string_array("[]").is_empty());
         assert!(parse_string_array("not an array").is_empty());
-        assert!(parse_string_array(r#"["a",,]"#).iter().all(|s| !s.is_empty()) );
+        assert!(parse_string_array(r#"["a",,]"#)
+            .iter()
+            .all(|s| !s.is_empty()));
     }
 
     fn theme_update(name: &str) -> Vec<(&'static str, String)> {

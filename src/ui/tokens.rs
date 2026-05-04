@@ -34,9 +34,21 @@ pub(crate) fn draw_tokens_panel(f: &mut Frame, app: &App, area: Rect, theme: &Th
         (0.0, 0.0, 0.0, 0.0)
     };
 
-    let free_grad = make_gradient(theme.free_grad.start, theme.free_grad.mid, theme.free_grad.end);
-    let used_grad = make_gradient(theme.used_grad.start, theme.used_grad.mid, theme.used_grad.end);
-    let cached_grad = make_gradient(theme.cached_grad.start, theme.cached_grad.mid, theme.cached_grad.end);
+    let free_grad = make_gradient(
+        theme.free_grad.start,
+        theme.free_grad.mid,
+        theme.free_grad.end,
+    );
+    let used_grad = make_gradient(
+        theme.used_grad.start,
+        theme.used_grad.mid,
+        theme.used_grad.end,
+    );
+    let cached_grad = make_gradient(
+        theme.cached_grad.start,
+        theme.cached_grad.mid,
+        theme.cached_grad.end,
+    );
 
     let bar_w = (area.width as usize).saturating_sub(20).clamp(5, 15);
 
@@ -45,12 +57,17 @@ pub(crate) fn draw_tokens_panel(f: &mut Frame, app: &App, area: Rect, theme: &Th
         styled_label(format!(" {}: ", total_label).as_str(), theme.graph_text),
         Span::styled(
             fmt_tokens(total),
-            Style::default().fg(theme.title).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(theme.title)
+                .add_modifier(Modifier::BOLD),
         ),
     ];
 
     let input_label = t("tokens.input");
-    let mut input_line = vec![styled_label(format!(" {} :", input_label).as_str(), theme.graph_text)];
+    let mut input_line = vec![styled_label(
+        format!(" {} :", input_label).as_str(),
+        theme.graph_text,
+    )];
     input_line.extend(meter_bar(in_pct, bar_w, &free_grad, theme.meter_bg));
     input_line.push(Span::styled(
         format!(" {}", fmt_tokens(total_in)),
@@ -58,7 +75,10 @@ pub(crate) fn draw_tokens_panel(f: &mut Frame, app: &App, area: Rect, theme: &Th
     ));
 
     let output_label = t("tokens.output");
-    let mut output_line = vec![styled_label(format!(" {}:", output_label).as_str(), theme.graph_text)];
+    let mut output_line = vec![styled_label(
+        format!(" {}:", output_label).as_str(),
+        theme.graph_text,
+    )];
     output_line.extend(meter_bar(out_pct, bar_w, &used_grad, theme.meter_bg));
     output_line.push(Span::styled(
         format!(" {}", fmt_tokens(total_out)),
@@ -66,7 +86,10 @@ pub(crate) fn draw_tokens_panel(f: &mut Frame, app: &App, area: Rect, theme: &Th
     ));
 
     let cache_r_label = t("tokens.cache_r");
-    let mut cache_r_line = vec![styled_label(format!(" {}:", cache_r_label).as_str(), theme.graph_text)];
+    let mut cache_r_line = vec![styled_label(
+        format!(" {}:", cache_r_label).as_str(),
+        theme.graph_text,
+    )];
     cache_r_line.extend(meter_bar(cache_r_pct, bar_w, &cached_grad, theme.meter_bg));
     cache_r_line.push(Span::styled(
         format!(" {}", fmt_tokens(cache_read)),
@@ -74,7 +97,10 @@ pub(crate) fn draw_tokens_panel(f: &mut Frame, app: &App, area: Rect, theme: &Th
     ));
 
     let cache_w_label = t("tokens.cache_w");
-    let mut cache_w_line = vec![styled_label(format!(" {}:", cache_w_label).as_str(), theme.graph_text)];
+    let mut cache_w_line = vec![styled_label(
+        format!(" {}:", cache_w_label).as_str(),
+        theme.graph_text,
+    )];
     cache_w_line.extend(meter_bar(cache_w_pct, bar_w, &cached_grad, theme.meter_bg));
     cache_w_line.push(Span::styled(
         format!(" {}", fmt_tokens(cache_write)),
@@ -95,9 +121,17 @@ pub(crate) fn draw_tokens_panel(f: &mut Frame, app: &App, area: Rect, theme: &Th
         .map(|&v| v as f64 / max_val as f64)
         .collect();
     let mut spark_line_spans = vec![styled_label(" ", theme.graph_text)];
-    spark_line_spans.extend(braille_sparkline(&normalized, spark_w, &cpu_grad, theme.graph_text));
+    spark_line_spans.extend(braille_sparkline(
+        &normalized,
+        spark_w,
+        &cpu_grad,
+        theme.graph_text,
+    ));
     let tokens_turn_label = t("tokens.tokens_turn");
-    spark_line_spans.push(Span::styled(format!(" {}", tokens_turn_label), Style::default().fg(theme.graph_text)));
+    spark_line_spans.push(Span::styled(
+        format!(" {}", tokens_turn_label),
+        Style::default().fg(theme.graph_text),
+    ));
 
     let turns_label = t("tokens.turns");
     let avg_label = t("tokens.avg");
@@ -120,7 +154,11 @@ pub(crate) fn draw_tokens_panel(f: &mut Frame, app: &App, area: Rect, theme: &Th
     ];
 
     let panel_title = if let Some(s) = selected {
-        format!("tokens ({}/{})", truncate_str(&s.project_name, 12), truncate_str(&s.session_id, 8))
+        format!(
+            "tokens ({}/{})",
+            truncate_str(&s.project_name, 12),
+            truncate_str(&s.session_id, 8)
+        )
     } else {
         "tokens".to_string()
     };

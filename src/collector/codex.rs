@@ -47,10 +47,8 @@ impl CodexCollector {
         // Step 1: Find running codex processes from shared ps data (no extra ps call).
         // When MCP suppression is on, exclude `codex mcp-server` PIDs — those
         // are surfaced through the MCP servers panel instead. See issue #95.
-        let codex_pids = Self::find_codex_pids_from_shared(
-            &shared.process_info,
-            &shared.mcp_server_pids,
-        );
+        let codex_pids =
+            Self::find_codex_pids_from_shared(&shared.process_info, &shared.mcp_server_pids);
         let just_pids: Vec<u32> = codex_pids.iter().map(|(p, _)| *p).collect();
         let pid_to_jsonl = Self::map_pid_to_jsonl(&just_pids);
         let pid_is_exec: HashMap<u32, bool> = codex_pids.into_iter().collect();
@@ -176,7 +174,9 @@ impl CodexCollector {
         let mem_mb = proc.map(|p| p.rss_kb / 1024).unwrap_or(0);
         let display_pid = pid.unwrap_or(0);
 
-        let project_name = process::last_path_segment(&result.cwd).unwrap_or("?").to_string();
+        let project_name = process::last_path_segment(&result.cwd)
+            .unwrap_or("?")
+            .to_string();
 
         // Status detection
         // Note: Codex interactive sessions emit task_complete after every turn,
@@ -346,7 +346,11 @@ impl CodexCollector {
         #[cfg(target_os = "windows")]
         {
             let mut sys = sysinfo::System::new();
-            let pids_sys: Vec<sysinfo::Pid> = pids.iter().copied().map(|p| sysinfo::Pid::from(p as usize)).collect();
+            let pids_sys: Vec<sysinfo::Pid> = pids
+                .iter()
+                .copied()
+                .map(|p| sysinfo::Pid::from(p as usize))
+                .collect();
             sys.refresh_processes_specifics(
                 sysinfo::ProcessesToUpdate::Some(&pids_sys),
                 true,
@@ -360,7 +364,8 @@ impl CodexCollector {
                             for entry in entries.flatten() {
                                 let name = entry.file_name();
                                 let name_str = name.to_string_lossy();
-                                if name_str.starts_with("rollout-") && name_str.ends_with(".jsonl") {
+                                if name_str.starts_with("rollout-") && name_str.ends_with(".jsonl")
+                                {
                                     map.insert(pid_u32, entry.path());
                                     break;
                                 }

@@ -21,30 +21,56 @@ pub(crate) fn draw_config_overlay(f: &mut Frame, app: &App, theme: &Theme) {
     let config_title = t("config.title");
     let block = Block::default()
         .style(Style::default().bg(theme.main_bg))
-        .title(Line::from(vec![
-            Span::styled(
+        .title(
+            Line::from(vec![Span::styled(
                 config_title.clone(),
-                Style::default().fg(theme.title).add_modifier(Modifier::BOLD),
-            ),
-        ]).alignment(Alignment::Center))
+                Style::default()
+                    .fg(theme.title)
+                    .add_modifier(Modifier::BOLD),
+            )])
+            .alignment(Alignment::Center),
+        )
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme.cpu_box));
     f.render_widget(block, popup);
 
-    let inner = Rect::new(popup.x + 2, popup.y + 1, popup.width.saturating_sub(4), popup.height.saturating_sub(2));
+    let inner = Rect::new(
+        popup.x + 2,
+        popup.y + 1,
+        popup.width.saturating_sub(4),
+        popup.height.saturating_sub(2),
+    );
 
     let theme_label = t("config.theme");
     let on_str = t("config.on");
     let off_str = t("config.off");
     let items: Vec<(String, String)> = vec![
         (theme_label, app.theme.name.to_string()),
-        (format!("Context panel (1)"), toggle_str(&on_str, &off_str, app.show_context)),
-        (format!("Quota panel (2)"), toggle_str(&on_str, &off_str, app.show_quota)),
-        (format!("Tokens panel (3)"), toggle_str(&on_str, &off_str, app.show_tokens)),
-        (format!("Projects panel (4)"), toggle_str(&on_str, &off_str, app.show_projects)),
-        (format!("Ports panel (5)"), toggle_str(&on_str, &off_str, app.show_ports)),
-        (format!("Sessions panel (6)"), toggle_str(&on_str, &off_str, app.show_sessions)),
+        (
+            format!("Context panel (1)"),
+            toggle_str(&on_str, &off_str, app.show_context),
+        ),
+        (
+            format!("Quota panel (2)"),
+            toggle_str(&on_str, &off_str, app.show_quota),
+        ),
+        (
+            format!("Tokens panel (3)"),
+            toggle_str(&on_str, &off_str, app.show_tokens),
+        ),
+        (
+            format!("Projects panel (4)"),
+            toggle_str(&on_str, &off_str, app.show_projects),
+        ),
+        (
+            format!("Ports panel (5)"),
+            toggle_str(&on_str, &off_str, app.show_ports),
+        ),
+        (
+            format!("Sessions panel (6)"),
+            toggle_str(&on_str, &off_str, app.show_sessions),
+        ),
     ];
 
     let mut lines = Vec::new();
@@ -55,7 +81,10 @@ pub(crate) fn draw_config_overlay(f: &mut Frame, app: &App, theme: &Theme) {
         let cursor = if selected { ">" } else { " " };
 
         let label_style = if selected {
-            Style::default().fg(theme.selected_fg).bg(theme.selected_bg).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(theme.selected_fg)
+                .bg(theme.selected_bg)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.main_fg)
         };
@@ -84,7 +113,12 @@ pub(crate) fn draw_config_overlay(f: &mut Frame, app: &App, theme: &Theme) {
     let change_label = t("config.change");
     let close_label = t("config.close");
     lines.push(Line::from(Span::styled(
-        format!(" abtop v{}  {}  Esc {}", env!("CARGO_PKG_VERSION"), change_label, close_label),
+        format!(
+            " abtop v{}  {}  Esc {}",
+            env!("CARGO_PKG_VERSION"),
+            change_label,
+            close_label
+        ),
         Style::default().fg(theme.graph_text),
     )));
 
@@ -92,5 +126,9 @@ pub(crate) fn draw_config_overlay(f: &mut Frame, app: &App, theme: &Theme) {
 }
 
 fn toggle_str(on_str: &str, off_str: &str, v: bool) -> String {
-    if v { on_str.to_string() } else { off_str.to_string() }
+    if v {
+        on_str.to_string()
+    } else {
+        off_str.to_string()
+    }
 }

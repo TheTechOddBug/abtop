@@ -21,7 +21,8 @@ pub fn scan_proc_fds(pid: u32) -> Vec<std::path::PathBuf> {
         Ok(e) => e,
         Err(_) => return vec![],
     };
-    entries.flatten()
+    entries
+        .flatten()
         .filter_map(|e| fs::read_link(e.path()).ok())
         .collect()
 }
@@ -96,7 +97,16 @@ pub fn get_process_info() -> HashMap<u32, ProcInfo> {
             continue; // kernel thread, skip
         }
 
-        map.insert(pid, ProcInfo { pid, ppid, rss_kb, cpu_pct, command });
+        map.insert(
+            pid,
+            ProcInfo {
+                pid,
+                ppid,
+                rss_kb,
+                cpu_pct,
+                command,
+            },
+        );
     }
     map
 }
@@ -112,7 +122,9 @@ pub fn get_process_info() -> HashMap<u32, ProcInfo> {
     // Working/Waiting threshold downstream).
     static SYS: OnceLock<Mutex<sysinfo::System>> = OnceLock::new();
     let sys_mutex = SYS.get_or_init(|| Mutex::new(sysinfo::System::new()));
-    let mut sys = sys_mutex.lock().expect("process-info system mutex poisoned");
+    let mut sys = sys_mutex
+        .lock()
+        .expect("process-info system mutex poisoned");
 
     sys.refresh_processes_specifics(
         sysinfo::ProcessesToUpdate::All,
@@ -176,13 +188,16 @@ pub fn get_process_info() -> HashMap<u32, ProcInfo> {
                 ) {
                     let cpu = parts[3].parse::<f64>().unwrap_or(0.0);
                     let command = parts[4..].join(" ");
-                    map.insert(pid, ProcInfo {
+                    map.insert(
                         pid,
-                        ppid,
-                        rss_kb: rss,
-                        cpu_pct: cpu,
-                        command,
-                    });
+                        ProcInfo {
+                            pid,
+                            ppid,
+                            rss_kb: rss,
+                            cpu_pct: cpu,
+                            command,
+                        },
+                    );
                 }
             }
         }
@@ -212,7 +227,10 @@ pub fn has_active_descendant(
         }
         if let Some(kids) = children_map.get(&p) {
             for &kid in kids {
-                if process_info.get(&kid).is_some_and(|p| p.cpu_pct > cpu_threshold) {
+                if process_info
+                    .get(&kid)
+                    .is_some_and(|p| p.cpu_pct > cpu_threshold)
+                {
                     return true;
                 }
                 stack.push(kid);
@@ -301,10 +319,7 @@ pub fn get_listening_ports() -> HashMap<u32, Vec<u16>> {
             let local_addr = parts.first();
             let pid_str = parts.last();
             if let (Some(addr), Some(pid_s)) = (local_addr, pid_str) {
-                if let (Some(port_str), Ok(pid)) = (
-                    addr.rsplit(':').next(),
-                    pid_s.parse::<u32>(),
-                ) {
+                if let (Some(port_str), Ok(pid)) = (addr.rsplit(':').next(), pid_s.parse::<u32>()) {
                     if let Ok(port) = port_str.parse::<u16>() {
                         map.entry(pid).or_default().push(port);
                     }
@@ -327,8 +342,7 @@ pub fn get_listening_ports() -> HashMap<u32, Vec<u16>> {
         let stdout = String::from_utf8_lossy(&output.stdout);
         for line in stdout.lines().skip(1) {
             let parts: Vec<&str> = line.split_whitespace().collect();
-            let is_tcp_listen =
-                parts.len() >= 9 && parts[7] == "TCP" && line.contains("(LISTEN)");
+            let is_tcp_listen = parts.len() >= 9 && parts[7] == "TCP" && line.contains("(LISTEN)");
             if is_tcp_listen {
                 if let Ok(pid) = parts[1].parse::<u32>() {
                     if let Some(addr) = parts.get(8) {
@@ -450,16 +464,16 @@ mod tests {
             "/Users/a/.local/share/claude/versions/2.1.121 --allow-dangerously-skip-permissions",
             "claude",
         ));
-        assert!(cmd_has_binary(
-            "/opt/codex/versions/0.42.0 --foo",
-            "codex",
-        ));
+        assert!(cmd_has_binary("/opt/codex/versions/0.42.0 --foo", "codex",));
     }
 
     #[test]
     fn cmd_has_binary_does_not_overmatch() {
         // A sibling dir under `claude/` but not under `versions/` shouldn't match.
-        assert!(!cmd_has_binary("/Users/a/.local/share/claude/foo", "claude"));
+        assert!(!cmd_has_binary(
+            "/Users/a/.local/share/claude/foo",
+            "claude"
+        ));
         // A `versions/` dir not under `<name>/` shouldn't match either.
         assert!(!cmd_has_binary("/some/versions/2.1.121", "claude"));
     }

@@ -25,7 +25,10 @@ pub struct McpRollout {
 impl McpRollout {
     pub fn is_active(&self, now: SystemTime, threshold_secs: u64) -> bool {
         match self.mtime {
-            Some(m) => now.duration_since(m).map(|d| d.as_secs() < threshold_secs).unwrap_or(false),
+            Some(m) => now
+                .duration_since(m)
+                .map(|d| d.as_secs() < threshold_secs)
+                .unwrap_or(false),
             None => false,
         }
     }
@@ -56,7 +59,10 @@ pub struct McpServer {
 
 impl McpServer {
     pub fn active_count(&self, now: SystemTime, threshold_secs: u64) -> usize {
-        self.rollouts.iter().filter(|r| r.is_active(now, threshold_secs)).count()
+        self.rollouts
+            .iter()
+            .filter(|r| r.is_active(now, threshold_secs))
+            .count()
     }
 
     pub fn latest_mtime(&self) -> Option<SystemTime> {
@@ -80,7 +86,11 @@ pub struct McpDetection {
 
 impl McpDetection {
     pub fn empty() -> Self {
-        Self { servers: Vec::new(), server_pids: HashSet::new(), owned_rollouts: HashSet::new() }
+        Self {
+            servers: Vec::new(),
+            server_pids: HashSet::new(),
+            owned_rollouts: HashSet::new(),
+        }
     }
 }
 
@@ -130,7 +140,11 @@ pub fn detect(process_info: &HashMap<u32, ProcInfo>) -> McpDetection {
 
     servers.sort_by_key(|s| (s.parent_cli, s.pid));
 
-    McpDetection { servers, server_pids, owned_rollouts }
+    McpDetection {
+        servers,
+        server_pids,
+        owned_rollouts,
+    }
 }
 
 /// True when `cmd` is a `codex mcp-server [...]` invocation.
@@ -165,9 +179,7 @@ fn parse_profile_flag(cmd: &str) -> Option<String> {
     let needle = "profile=";
     let pos = cmd.find(needle)?;
     let tail = &cmd[pos + needle.len()..];
-    let end = tail
-        .find(|c: char| c.is_whitespace())
-        .unwrap_or(tail.len());
+    let end = tail.find(|c: char| c.is_whitespace()).unwrap_or(tail.len());
     let value = tail[..end].trim_matches(|c: char| c == '"' || c == '\'');
     if value.is_empty() {
         None
@@ -181,7 +193,11 @@ fn rollout_for_path(path: &PathBuf) -> McpRollout {
         Ok(meta) => (meta.modified().ok(), meta.len()),
         Err(_) => (None, 0),
     };
-    McpRollout { path: path.clone(), mtime, size_bytes }
+    McpRollout {
+        path: path.clone(),
+        mtime,
+        size_bytes,
+    }
 }
 
 /// Map mcp-server PIDs to all their open `rollout-*.jsonl` paths.
@@ -301,7 +317,10 @@ mod tests {
     #[test]
     fn parses_profile_flag() {
         let mut info = HashMap::new();
-        info.insert(101, proc(101, 50, "codex mcp-server -c profile=qwen36-litellm"));
+        info.insert(
+            101,
+            proc(101, 50, "codex mcp-server -c profile=qwen36-litellm"),
+        );
         info.insert(50, proc(50, 1, "claude"));
         let det = detect(&info);
         assert_eq!(det.servers.len(), 1);
