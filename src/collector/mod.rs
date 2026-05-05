@@ -101,6 +101,11 @@ pub struct SharedProcessData {
     /// sessions panel restores upstream behavior. Driven by the user
     /// toggle (Shift+M).
     pub mcp_suppress: bool,
+    /// PID of the running abtop process. Used by collectors to filter
+    /// out child processes abtop itself spawned (e.g. `claude --print`
+    /// summary children) without dropping unrelated non-interactive
+    /// sessions started by the user.
+    pub self_pid: u32,
 }
 
 impl SharedProcessData {
@@ -120,6 +125,7 @@ impl SharedProcessData {
             mcp_server_pids: HashSet::new(),
             mcp_owned_rollouts: HashSet::new(),
             mcp_suppress: true,
+            self_pid: std::process::id(),
         }
     }
 }

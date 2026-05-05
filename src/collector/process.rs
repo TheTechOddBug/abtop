@@ -213,6 +213,35 @@ pub fn get_children_map(procs: &HashMap<u32, ProcInfo>) -> HashMap<u32, Vec<u32>
     children
 }
 
+/// Walk the ppid chain from `pid` and return true if `ancestor` is reached.
+/// Used to identify processes spawned by abtop itself (e.g. `claude --print`
+/// summary children) so they can be filtered without dropping unrelated
+/// non-interactive sessions started by the user.
+pub fn is_descendant_of(
+    pid: u32,
+    ancestor: u32,
+    process_info: &HashMap<u32, ProcInfo>,
+) -> bool {
+    if pid == 0 || ancestor == 0 || pid == ancestor {
+        return false;
+    }
+    let mut current = pid;
+    let mut visited = std::collections::HashSet::new();
+    while visited.insert(current) {
+        let Some(info) = process_info.get(&current) else {
+            return false;
+        };
+        if info.ppid == ancestor {
+            return true;
+        }
+        if info.ppid == 0 || info.ppid == 1 {
+            return false;
+        }
+        current = info.ppid;
+    }
+    false
+}
+
 pub fn has_active_descendant(
     pid: u32,
     children_map: &HashMap<u32, Vec<u32>>,
@@ -482,5 +511,71 @@ mod tests {
         ));
         // A `versions/` dir not under `<name>/` shouldn't match either.
         assert!(!cmd_has_binary("/some/versions/2.1.121", "claude"));
+    }
+
+    fn proc(pid: u32, ppid: u32) -> ProcInfo {
+        ProcInfo {
+            pid,
+            ppid,
+            rss_kb: 0,
+            cpu_pct: 0.0,
+            command: "x".to_string(),
+        }
+    }
+
+    #[test]
+    fn is_descendant_of_direct_child() {
+        let mut m = HashMap::new();
+        m.insert(10, proc(10, 1));
+        m.insert(20, proc(20, 10));
+        assert!(is_descendant_of(20, 10, &m));
+    }
+
+    #[test]
+    fn is_descendant_of_walks_chain() {
+        let mut m = HashMap::new();
+        m.insert(10, proc(10, 1));
+        m.insert(20, proc(20, 10));
+        m.insert(30, proc(30, 20));
+        assert!(is_descendant_of(30, 10, &m));
+    }
+
+    #[test]
+    fn is_descendant_of_unrelated_returns_false() {
+        let mut m = HashMap::new();
+        m.insert(10, proc(10, 1));
+        m.insert(20, proc(20, 1));
+        assert!(!is_descendant_of(20, 10, &m));
+    }
+
+    #[test]
+    fn is_descendant_of_self_returns_false() {
+        let mut m = HashMap::new();
+        m.insert(10, proc(10, 1));
+        assert!(!is_descendant_of(10, 10, &m));
+    }
+
+    #[test]
+    fn is_descendant_of_zero_ancestor_or_pid_returns_false() {
+        let m: HashMap<u32, ProcInfo> = HashMap::new();
+        assert!(!is_descendant_of(0, 10, &m));
+        assert!(!is_descendant_of(10, 0, &m));
+    }
+
+    #[test]
+    fn is_descendant_of_handles_cycle() {
+        // Synthetic cycle (real /proc shouldn't produce one, but be safe).
+        let mut m = HashMap::new();
+        m.insert(10, proc(10, 20));
+        m.insert(20, proc(20, 10));
+        assert!(!is_descendant_of(10, 99, &m));
+    }
+
+    #[test]
+    fn is_descendant_of_missing_ancestor_in_chain() {
+        // ppid points at a PID that no longer exists (parent already exited).
+        let mut m = HashMap::new();
+        m.insert(20, proc(20, 99));
+        assert!(!is_descendant_of(20, 7, &m));
     }
 }

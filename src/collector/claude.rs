@@ -105,7 +105,8 @@ impl ClaudeCollector {
             self.refresh_config_dirs(&shared.process_info);
         }
 
-        let active_session_paths = self.discover_active_session_paths(&shared.process_info);
+        let active_session_paths =
+            self.discover_active_session_paths(&shared.process_info, shared.self_pid);
         let active_config_dirs: Vec<ConfigDir> = active_session_paths
             .iter()
             .map(|(_, config)| config.clone())
@@ -132,7 +133,8 @@ impl ClaudeCollector {
             }
         }
 
-        let discovery_ctx = build_discovery_context(&session_paths, &shared.process_info);
+        let discovery_ctx =
+            build_discovery_context(&session_paths, &shared.process_info, shared.self_pid);
 
         let mut sessions = self.load_session_paths(
             &session_paths,
@@ -140,6 +142,7 @@ impl ClaudeCollector {
             &shared.children_map,
             &shared.ports,
             &discovery_ctx,
+            shared.self_pid,
         );
 
         self.evict_stale_cache(&sessions);
@@ -166,12 +169,13 @@ impl ClaudeCollector {
         children_map: &HashMap<u32, Vec<u32>>,
         ports: &HashMap<u32, Vec<u16>>,
         ctx: &DiscoveryContext,
+        self_pid: u32,
     ) -> Vec<AgentSession> {
         let mut sessions = Vec::new();
         let mut seen_ids = std::collections::HashSet::new();
         for (path, config) in session_paths {
             if let Some(session) =
-                self.load_session(path, config, process_info, children_map, ports, ctx)
+                self.load_session(path, config, process_info, children_map, ports, ctx, self_pid)
             {
                 if seen_ids.insert(session.session_id.clone()) {
                     sessions.push(session);
@@ -191,8 +195,9 @@ impl ClaudeCollector {
     fn discover_active_session_paths(
         &self,
         process_info: &HashMap<u32, process::ProcInfo>,
+        self_pid: u32,
     ) -> Vec<(PathBuf, ConfigDir)> {
-        let pids = Self::find_claude_pids(process_info);
+        let pids = Self::find_claude_pids(process_info, self_pid);
         if pids.is_empty() {
             return Vec::new();
         }
@@ -225,13 +230,23 @@ impl ClaudeCollector {
         paths
     }
 
-    fn find_claude_pids(process_info: &HashMap<u32, process::ProcInfo>) -> Vec<u32> {
+    /// Collect PIDs of all live `claude` processes that are NOT descendants
+    /// of abtop itself. Other users' non-interactive (`claude --print`)
+    /// invocations are still surfaced — only abtop's own summary children
+    /// are filtered out.
+    fn find_claude_pids(
+        process_info: &HashMap<u32, process::ProcInfo>,
+        self_pid: u32,
+    ) -> Vec<u32> {
         let mut pids = Vec::new();
         for (pid, info) in process_info {
-            let cmd = &info.command;
-            if process::cmd_has_binary(cmd, "claude") && !cmd.contains("--print") {
-                pids.push(*pid);
+            if !process::cmd_has_binary(&info.command, "claude") {
+                continue;
             }
+            if process::is_descendant_of(*pid, self_pid, process_info) {
+                continue;
+            }
+            pids.push(*pid);
         }
         pids
     }
@@ -266,6 +281,7 @@ impl ClaudeCollector {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn load_session(
         &mut self,
         path: &Path,
@@ -274,6 +290,7 @@ impl ClaudeCollector {
         children_map: &HashMap<u32, Vec<u32>>,
         ports: &HashMap<u32, Vec<u16>>,
         ctx: &DiscoveryContext,
+        self_pid: u32,
     ) -> Option<AgentSession> {
         let content = fs::read_to_string(path).ok()?;
         let mut sf: SessionFile = serde_json::from_str(&content).ok()?;
@@ -316,10 +333,13 @@ impl ClaudeCollector {
             .map(|c| process::cmd_has_binary(c, "claude"))
             .unwrap_or(false);
 
-        // Skip --print sessions (e.g. abtop's own summary generation).
-        // Only filter while process is alive (command visible); dead sessions
-        // are cleaned up when the session file disappears.
-        if proc_cmd.map(|c| c.contains("--print")).unwrap_or(false) {
+        // Skip sessions whose PID is a descendant of abtop itself —
+        // those are the `claude --print` summary children spawned by
+        // `generate_summary` in app.rs. User-launched non-interactive
+        // sessions (`claude --print` in another shell) are NOT filtered.
+        // Only checked while the process is alive (ppid visible); dead
+        // sessions are cleaned up when the session file disappears.
+        if process::is_descendant_of(sf.pid, self_pid, process_info) {
             return None;
         }
 
@@ -942,6 +962,7 @@ struct DiscoveryContext {
 fn build_discovery_context(
     session_paths: &[(PathBuf, ConfigDir)],
     process_info: &HashMap<u32, ProcInfo>,
+    self_pid: u32,
 ) -> DiscoveryContext {
     let mut claimed_sids_by_pid: HashMap<u32, String> = HashMap::new();
     let mut pids_per_cwd: HashMap<String, usize> = HashMap::new();
@@ -957,18 +978,19 @@ fn build_discovery_context(
         if !seen_pids.insert(sf.pid) {
             continue;
         }
-        // Only count PIDs that are alive AND actually claude AND not a
-        // `--print` spawn. Stale `sessions/{PID}.json` files (crashed
-        // sessions) and abtop's own `claude --print` summary children
-        // would otherwise inflate `pids_per_cwd` and silently suppress
-        // the /clear sid override for the real session sharing that cwd.
+        // Only count PIDs that are alive AND actually claude AND not
+        // descended from abtop itself. Stale `sessions/{PID}.json` files
+        // (crashed sessions) and abtop's own `claude --print` summary
+        // children would otherwise inflate `pids_per_cwd` and silently
+        // suppress the /clear sid override for the real session sharing
+        // that cwd.
         let Some(info) = process_info.get(&sf.pid) else {
             continue;
         };
         if !process::cmd_has_binary(&info.command, "claude") {
             continue;
         }
-        if info.command.contains("--print") {
+        if process::is_descendant_of(sf.pid, self_pid, process_info) {
             continue;
         }
         *pids_per_cwd.entry(sf.cwd.clone()).or_insert(0) += 1;
@@ -2082,13 +2104,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             (session_path.clone(), config.clone()),
             (session_path.clone(), config),
         ];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let sessions = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -2171,8 +2194,24 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
     }
 
     #[test]
-    fn test_find_claude_pids_excludes_print_sessions() {
+    fn test_find_claude_pids_excludes_self_spawned_print_sessions() {
+        // Simulate abtop running as PID 99 with a `claude --print` summary
+        // child it spawned (PID 11, ppid=99) AND an unrelated user-launched
+        // `claude --print` session (PID 13, ppid=1). The self-spawned child
+        // must be filtered; the user-launched non-interactive session must
+        // be tracked.
+        let abtop_pid = 99u32;
         let mut process_info = HashMap::new();
+        process_info.insert(
+            abtop_pid,
+            ProcInfo {
+                pid: abtop_pid,
+                ppid: 1,
+                rss_kb: 1,
+                cpu_pct: 0.0,
+                command: "abtop".to_string(),
+            },
+        );
         process_info.insert(
             10,
             ProcInfo {
@@ -2187,7 +2226,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             11,
             ProcInfo {
                 pid: 11,
-                ppid: 1,
+                ppid: abtop_pid,
                 rss_kb: 1,
                 cpu_pct: 0.0,
                 command: "claude --print summarize".to_string(),
@@ -2203,8 +2242,20 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
                 command: "codex".to_string(),
             },
         );
+        process_info.insert(
+            13,
+            ProcInfo {
+                pid: 13,
+                ppid: 1,
+                rss_kb: 1,
+                cpu_pct: 0.0,
+                command: "claude --print user-script".to_string(),
+            },
+        );
 
-        assert_eq!(ClaudeCollector::find_claude_pids(&process_info), vec![10]);
+        let mut got = ClaudeCollector::find_claude_pids(&process_info, abtop_pid);
+        got.sort_unstable();
+        assert_eq!(got, vec![10, 13]);
     }
 
     #[test]
@@ -2298,7 +2349,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         let mut collector = ClaudeCollector::new();
 
         assert_eq!(discovered.len(), 1);
-        let ctx = build_discovery_context(&discovered, &process_info);
+        let ctx = build_discovery_context(&discovered, &process_info, 0);
         let session = collector
             .load_session(
                 &discovered[0].0,
@@ -2307,6 +2358,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
                 &HashMap::new(),
                 &HashMap::new(),
                 &ctx,
+                0,
             )
             .unwrap();
 
@@ -2346,7 +2398,8 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         let children_map = HashMap::new();
         let ports = HashMap::new();
         let config = ConfigDir::new(profile);
-        let ctx = build_discovery_context(&[(session_path.clone(), config.clone())], &process_info);
+        let ctx =
+            build_discovery_context(&[(session_path.clone(), config.clone())], &process_info, 0);
 
         let session = collector
             .load_session(
@@ -2356,6 +2409,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
                 &children_map,
                 &ports,
                 &ctx,
+                0,
             )
             .unwrap();
 
@@ -2865,13 +2919,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         collector.config_dirs = vec![config.clone()];
 
         let session_paths = vec![(session_path, config)];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let sessions = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -2925,13 +2980,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         collector.config_dirs = vec![config.clone()];
 
         let session_paths = vec![(session_path, config)];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let sessions = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -2978,13 +3034,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         collector.config_dirs = vec![config.clone()];
 
         let session_paths = vec![(session_path, config)];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let sessions = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -3027,13 +3084,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         collector.config_dirs = vec![config.clone()];
 
         let session_paths = vec![(session_path, config)];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let sessions = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -3085,13 +3143,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         collector.config_dirs = vec![config.clone()];
 
         let session_paths = vec![(session_path, config)];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let sessions = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -3146,13 +3205,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         collector.config_dirs = vec![config.clone()];
 
         let session_paths = vec![(path_a, config.clone()), (path_b, config)];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let sessions = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
 
         let sids: std::collections::HashSet<&str> =
@@ -3184,6 +3244,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         std::fs::create_dir_all(&projects).unwrap();
         std::fs::create_dir_all(&cwd).unwrap();
 
+        let abtop_pid = 9999u32;
         let real_pid = 7070;
         let print_pid = 7071;
         let real_old = "real-old";
@@ -3203,10 +3264,20 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         let config = ConfigDir::new(profile.clone());
         let mut process_info = make_proc_info(real_pid, "claude");
         process_info.insert(
+            abtop_pid,
+            ProcInfo {
+                pid: abtop_pid,
+                ppid: 1,
+                rss_kb: 1024,
+                cpu_pct: 0.0,
+                command: "abtop".to_string(),
+            },
+        );
+        process_info.insert(
             print_pid,
             ProcInfo {
                 pid: print_pid,
-                ppid: real_pid,
+                ppid: abtop_pid,
                 rss_kb: 512,
                 cpu_pct: 0.0,
                 command: "claude --print -".to_string(),
@@ -3216,7 +3287,7 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         let mut collector = ClaudeCollector::new();
         collector.config_dirs = vec![config.clone()];
         let session_paths = vec![(real_path, config.clone()), (print_path, config)];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, abtop_pid);
 
         // The --print PID must not appear in the discovery context, so
         // `pids_per_cwd` stays at 1 and the override fires.
@@ -3236,12 +3307,80 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            abtop_pid,
         );
 
         // Only the real session survives (--print is dropped in
         // load_session); its sid must be the post-/clear one.
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].session_id, real_new);
+    }
+
+    #[test]
+    fn test_load_session_keeps_user_spawned_print() {
+        // Counterpart to the regression above: a `claude --print` session
+        // launched by the *user* (not abtop) must be surfaced. Before the
+        // self-PID descendant check, every `--print` invocation was filtered
+        // unconditionally — this guards against that regressing.
+        let temp = tempfile::tempdir().unwrap();
+        let profile = temp.path().join(".claude");
+        let sessions_dir = profile.join("sessions");
+        let projects = profile.join("projects");
+        let cwd = temp.path().join("repo");
+        std::fs::create_dir_all(&sessions_dir).unwrap();
+        std::fs::create_dir_all(&projects).unwrap();
+        std::fs::create_dir_all(&cwd).unwrap();
+
+        let abtop_pid = 9999u32;
+        let user_print_pid = 4242u32;
+        let user_print_sid = "user-print-sid";
+        let session_path = sessions_dir.join(format!("{}.json", user_print_pid));
+        write_session_file(&session_path, user_print_pid, user_print_sid, &cwd);
+        write_transcript(&projects, &cwd, user_print_sid, "user prompt");
+
+        let config = ConfigDir::new(profile.clone());
+
+        let mut process_info = HashMap::new();
+        process_info.insert(
+            abtop_pid,
+            ProcInfo {
+                pid: abtop_pid,
+                ppid: 1,
+                rss_kb: 1024,
+                cpu_pct: 0.0,
+                command: "abtop".to_string(),
+            },
+        );
+        process_info.insert(
+            user_print_pid,
+            ProcInfo {
+                pid: user_print_pid,
+                ppid: 1, // launched by the user, not abtop
+                rss_kb: 512,
+                cpu_pct: 0.5,
+                command: "claude --print user-script".to_string(),
+            },
+        );
+
+        let mut collector = ClaudeCollector::new();
+        collector.config_dirs = vec![config.clone()];
+        let session_paths = vec![(session_path, config)];
+        let ctx = build_discovery_context(&session_paths, &process_info, abtop_pid);
+        let sessions = collector.load_session_paths(
+            &session_paths,
+            &process_info,
+            &HashMap::new(),
+            &HashMap::new(),
+            &ctx,
+            abtop_pid,
+        );
+
+        assert_eq!(
+            sessions.len(),
+            1,
+            "user-launched `claude --print` must be surfaced",
+        );
+        assert_eq!(sessions[0].session_id, user_print_sid);
     }
 
     #[test]
@@ -3277,13 +3416,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
 
         // Poll 1 — only old_sid exists.
         let session_paths = vec![(session_path.clone(), config.clone())];
-        let ctx = build_discovery_context(&session_paths, &process_info);
+        let ctx = build_discovery_context(&session_paths, &process_info, 0);
         let first = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
+            0,
         );
         collector.evict_stale_cache(&first);
         assert_eq!(first.len(), 1);
@@ -3313,13 +3453,14 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
         set_mtime(&new_transcript, 0);
 
         // Poll 2 — override must fire and old cache entry must drop.
-        let ctx2 = build_discovery_context(&session_paths, &process_info);
+        let ctx2 = build_discovery_context(&session_paths, &process_info, 0);
         let second = collector.load_session_paths(
             &session_paths,
             &process_info,
             &HashMap::new(),
             &HashMap::new(),
             &ctx2,
+            0,
         );
         collector.evict_stale_cache(&second);
         assert_eq!(second.len(), 1);
