@@ -105,8 +105,9 @@ impl ClaudeCollector {
             self.refresh_config_dirs(&shared.process_info);
         }
 
+        let self_pid = std::process::id();
         let active_session_paths =
-            self.discover_active_session_paths(&shared.process_info, shared.self_pid);
+            self.discover_active_session_paths(&shared.process_info, self_pid);
         let active_config_dirs: Vec<ConfigDir> = active_session_paths
             .iter()
             .map(|(_, config)| config.clone())
@@ -134,7 +135,7 @@ impl ClaudeCollector {
         }
 
         let discovery_ctx =
-            build_discovery_context(&session_paths, &shared.process_info, shared.self_pid);
+            build_discovery_context(&session_paths, &shared.process_info, self_pid);
 
         let mut sessions = self.load_session_paths(
             &session_paths,
@@ -142,7 +143,6 @@ impl ClaudeCollector {
             &shared.children_map,
             &shared.ports,
             &discovery_ctx,
-            shared.self_pid,
         );
 
         self.evict_stale_cache(&sessions);
@@ -169,13 +169,12 @@ impl ClaudeCollector {
         children_map: &HashMap<u32, Vec<u32>>,
         ports: &HashMap<u32, Vec<u16>>,
         ctx: &DiscoveryContext,
-        self_pid: u32,
     ) -> Vec<AgentSession> {
         let mut sessions = Vec::new();
         let mut seen_ids = std::collections::HashSet::new();
         for (path, config) in session_paths {
             if let Some(session) =
-                self.load_session(path, config, process_info, children_map, ports, ctx, self_pid)
+                self.load_session(path, config, process_info, children_map, ports, ctx)
             {
                 if seen_ids.insert(session.session_id.clone()) {
                     sessions.push(session);
@@ -281,7 +280,6 @@ impl ClaudeCollector {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn load_session(
         &mut self,
         path: &Path,
@@ -290,7 +288,6 @@ impl ClaudeCollector {
         children_map: &HashMap<u32, Vec<u32>>,
         ports: &HashMap<u32, Vec<u16>>,
         ctx: &DiscoveryContext,
-        self_pid: u32,
     ) -> Option<AgentSession> {
         let content = fs::read_to_string(path).ok()?;
         let mut sf: SessionFile = serde_json::from_str(&content).ok()?;
@@ -339,7 +336,7 @@ impl ClaudeCollector {
         // sessions (`claude --print` in another shell) are NOT filtered.
         // Only checked while the process is alive (ppid visible); dead
         // sessions are cleaned up when the session file disappears.
-        if process::is_descendant_of(sf.pid, self_pid, process_info) {
+        if process::is_descendant_of(sf.pid, ctx.self_pid, process_info) {
             return None;
         }
 
@@ -957,6 +954,9 @@ struct DiscoveryContext {
     claimed_sids_by_pid: HashMap<u32, String>,
     /// cwd → number of active session files pointing at it.
     pids_per_cwd: HashMap<String, usize>,
+    /// abtop's own PID, threaded through so `load_session` can self-filter
+    /// without growing an extra arg. Set by `build_discovery_context`.
+    self_pid: u32,
 }
 
 fn build_discovery_context(
@@ -999,6 +999,7 @@ fn build_discovery_context(
     DiscoveryContext {
         claimed_sids_by_pid,
         pids_per_cwd,
+        self_pid,
     }
 }
 
@@ -2111,7 +2112,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -2358,7 +2358,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
                 &HashMap::new(),
                 &HashMap::new(),
                 &ctx,
-                0,
             )
             .unwrap();
 
@@ -2409,7 +2408,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
                 &children_map,
                 &ports,
                 &ctx,
-                0,
             )
             .unwrap();
 
@@ -2926,7 +2924,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -2987,7 +2984,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -3041,7 +3037,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -3091,7 +3086,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -3150,7 +3144,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
 
         assert_eq!(sessions.len(), 1);
@@ -3212,7 +3205,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
 
         let sids: std::collections::HashSet<&str> =
@@ -3307,7 +3299,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            abtop_pid,
         );
 
         // Only the real session survives (--print is dropped in
@@ -3372,7 +3363,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            abtop_pid,
         );
 
         assert_eq!(
@@ -3423,7 +3413,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx,
-            0,
         );
         collector.evict_stale_cache(&first);
         assert_eq!(first.len(), 1);
@@ -3460,7 +3449,6 @@ n/Users/bob/.claude-alt/projects/-Users-bob-project/session.jsonl
             &HashMap::new(),
             &HashMap::new(),
             &ctx2,
-            0,
         );
         collector.evict_stale_cache(&second);
         assert_eq!(second.len(), 1);
