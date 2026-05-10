@@ -546,6 +546,9 @@ pub(crate) fn truncate_str(s: &str, max: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::PanelVisibility;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
 
     #[test]
     fn fmt_age_buckets() {
@@ -559,5 +562,31 @@ mod tests {
         // Regression: the quota panel used to render this raw as "341493ago"
         // because it formatted seconds without unit conversion.
         assert_eq!(fmt_age(341_493), "3d ago");
+    }
+
+    #[test]
+    fn desktop_default_detail_shows_chat_instead_of_timeline() {
+        let mut app = App::new_with_config(Theme::default(), &[], PanelVisibility::default());
+        crate::demo::populate_demo(&mut app);
+        app.sessions[app.selected].children.clear();
+        app.sessions[app.selected].subagents.clear();
+
+        let backend = TestBackend::new(160, 40);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &app)).unwrap();
+        let text = format!("{}", terminal.backend());
+
+        assert!(
+            text.contains("CHAT"),
+            "chat should render by default\n{text}"
+        );
+        assert!(
+            text.contains("webhook signatures"),
+            "recent chat tail should render selected session messages\n{text}"
+        );
+        assert!(
+            !text.contains("TIMELINE"),
+            "timeline should be opt-in via l toggle\n{text}"
+        );
     }
 }

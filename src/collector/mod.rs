@@ -58,6 +58,20 @@ pub(crate) fn redact_secrets(s: &str) -> String {
     result
 }
 
+/// Strip control characters and Unicode bidi override/isolate marks before
+/// transcript text is stored for terminal rendering.
+pub(crate) fn sanitize_terminal_text(s: &str) -> String {
+    s.chars()
+        .filter(|c| {
+            !c.is_control()
+                && !matches!(
+                    *c,
+                    '\u{202A}'..='\u{202E}' | '\u{2066}'..='\u{2069}' | '\u{200E}' | '\u{200F}'
+                )
+        })
+        .collect()
+}
+
 use crate::model::{AgentSession, OrphanPort, RateLimitInfo, SessionStatus};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
