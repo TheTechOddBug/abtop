@@ -95,7 +95,7 @@ Discovery strategy:
 4. Read `{config-root}/sessions/{PID}.json`, falling back to scanning session files for the matching embedded PID
 5. Parse `{config-root}/projects/{encoded-path}/{sessionId}.jsonl`
 
-Fallback config roots are still scanned: `~/.claude`, abtop's own `CLAUDE_CONFIG_DIR`, and on Linux any `CLAUDE_CONFIG_DIR` read from `/proc/{pid}/environ`.
+Fallback config roots are still scanned: `~/.claude`, direct home profile roots matching `~/.claude-*` when they contain both `sessions/` and `projects/`, `claude_config_dirs` from `~/.config/abtop/config.toml`, abtop's own `CLAUDE_CONFIG_DIR`, and on Linux any `CLAUDE_CONFIG_DIR` read from `/proc/{pid}/environ`.
 
 Session file format:
 ```json

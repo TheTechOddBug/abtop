@@ -79,10 +79,11 @@ fn main() -> io::Result<()> {
 
     // --once flag: print snapshot and exit
     if std::env::args().any(|a| a == "--once") {
-        let mut app = App::new_with_config(
+        let mut app = App::new_with_config_and_claude_dirs(
             initial_theme.unwrap_or_default(),
             &cfg.hidden_agents,
             cfg.panels,
+            &cfg.claude_config_dirs,
         );
         if demo_mode {
             demo::populate_demo(&mut app);
@@ -115,6 +116,7 @@ fn main() -> io::Result<()> {
         exit_on_jump,
         &cfg.hidden_agents,
         cfg.panels,
+        &cfg.claude_config_dirs,
     );
 
     // Always attempt both cleanup steps regardless of app result
@@ -133,8 +135,14 @@ fn run_app(
     exit_on_jump: bool,
     hidden_agents: &[String],
     panels: config::PanelVisibility,
+    claude_config_dirs: &[std::path::PathBuf],
 ) -> io::Result<()> {
-    let mut app = App::new_with_config(initial_theme.unwrap_or_default(), hidden_agents, panels);
+    let mut app = App::new_with_config_and_claude_dirs(
+        initial_theme.unwrap_or_default(),
+        hidden_agents,
+        panels,
+        claude_config_dirs,
+    );
     if demo_mode {
         demo::populate_demo(&mut app);
     } else {

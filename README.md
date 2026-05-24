@@ -121,6 +121,10 @@ theme = "btop"
 # Hide specific agent CLIs from the TUI (case-insensitive).
 # Useful if you only use one agent and want a cleaner view.
 hidden_agents = ["codex"]
+# Additional Claude Code profile roots to scan.
+# abtop also auto-discovers ~/.claude and ~/.claude-* roots that contain
+# both sessions/ and projects/.
+claude_config_dirs = ["~/.claude-personal", "~/.claude-work-team"]
 # UI language. Omit or leave empty to auto-detect from LANG.
 language = "zh"
 ```

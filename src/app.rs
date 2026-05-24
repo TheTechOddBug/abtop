@@ -3,6 +3,7 @@ use crate::host_info::{AgentAggregate, HostMetrics, HostSampler};
 use crate::model::{AgentSession, OrphanPort, RateLimitInfo, SessionStatus};
 use crate::theme::Theme;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -150,14 +151,25 @@ pub struct App {
 }
 
 impl App {
+    #[cfg(test)]
     pub fn new_with_config(
         theme: Theme,
         hidden_agents: &[String],
         panels: crate::config::PanelVisibility,
     ) -> Self {
+        Self::new_with_config_and_claude_dirs(theme, hidden_agents, panels, &[])
+    }
+
+    pub fn new_with_config_and_claude_dirs(
+        theme: Theme,
+        hidden_agents: &[String],
+        panels: crate::config::PanelVisibility,
+        claude_config_dirs: &[PathBuf],
+    ) -> Self {
         let (tx, rx) = mpsc::channel();
         let summaries = load_summary_cache();
-        let mut collector = MultiCollector::with_hidden(hidden_agents);
+        let mut collector =
+            MultiCollector::with_hidden_and_claude_config_dirs(hidden_agents, claude_config_dirs);
         collector.set_mcp_suppress(true);
         Self {
             sessions: Vec::new(),

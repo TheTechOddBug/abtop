@@ -177,11 +177,21 @@ impl MultiCollector {
     /// Build a collector, skipping agents whose identifier is in `hidden`.
     /// Identifiers are matched case-insensitively against each collector's
     /// `agent_cli` name (e.g. `"claude"`, `"codex"`).
+    #[cfg(test)]
     pub fn with_hidden(hidden: &[String]) -> Self {
+        Self::with_hidden_and_claude_config_dirs(hidden, &[])
+    }
+
+    pub fn with_hidden_and_claude_config_dirs(
+        hidden: &[String],
+        claude_config_dirs: &[PathBuf],
+    ) -> Self {
         let is_hidden = |name: &str| hidden.iter().any(|h| h.eq_ignore_ascii_case(name));
         let mut collectors: Vec<Box<dyn AgentCollector>> = Vec::new();
         if !is_hidden("claude") {
-            collectors.push(Box::new(ClaudeCollector::new()));
+            collectors.push(Box::new(ClaudeCollector::with_configured_dirs(
+                claude_config_dirs.to_vec(),
+            )));
         }
         if !is_hidden("codex") {
             collectors.push(Box::new(CodexCollector::new()));
