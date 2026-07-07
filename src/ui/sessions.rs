@@ -5,7 +5,7 @@ use crate::theme::Theme;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Cell, Paragraph, Row, Table};
+use ratatui::widgets::{Cell, Clear, Paragraph, Row, Table};
 use ratatui::Frame;
 
 use super::{btop_block_active, fmt_mem_kb, fmt_tokens, grad_at, make_gradient, truncate_str};
@@ -134,9 +134,9 @@ pub(crate) fn draw_sessions_panel_active(
         let marker = if selected { "►" } else { " " };
 
         let (agent_label, agent_color) = match session.agent_cli {
-            "claude"   => ("*CC", Color::Rgb(217, 119, 87)),  // #D97757 terracotta
-            "codex"    => (">CD", Color::Rgb(122, 157, 255)), // #7A9DFF periwinkle
-            "opencode" => ("#OC", Color::Rgb(74, 222, 128)),  // #4ADE80 emerald
+            "claude" => ("*CC", Color::Rgb(217, 119, 87)), // #D97757 terracotta
+            "codex" => (">CD", Color::Rgb(122, 157, 255)), // #7A9DFF periwinkle
+            "opencode" => ("#OC", Color::Rgb(74, 222, 128)), // #4ADE80 emerald
             other => {
                 let fallback: String = other.chars().take(3).collect::<String>().to_uppercase();
                 (
@@ -255,8 +255,7 @@ pub(crate) fn draw_sessions_panel_active(
         rows.push(Row::new(cells).style(row_style).height(1));
 
         // 2nd line: task text in Summary column
-        let summary_idx =
-            3 + show_pid as usize + show_session_id as usize + show_config as usize;
+        let summary_idx = 3 + show_pid as usize + show_session_id as usize + show_config as usize;
         let total_cols = 6
             + show_pid as usize
             + show_session_id as usize
@@ -274,7 +273,7 @@ pub(crate) fn draw_sessions_panel_active(
                         .map(|s| s.as_str())
                         .unwrap_or("");
                     Cell::from(Span::styled(
-                        format!("└─ {}", task_text),
+                        task_row_text(task_text, w.saturating_sub(24) as usize),
                         Style::default().fg(theme.graph_text),
                     ))
                 } else {
@@ -462,6 +461,7 @@ pub(crate) fn draw_sessions_panel_active(
         Vec::new()
     };
 
+    f.render_widget(Clear, table_area);
     let table = Table::new(visible, widths_vec).header(header);
     f.render_widget(table, table_area);
 
@@ -984,6 +984,10 @@ fn draw_file_audit(f: &mut Frame, session: &AgentSession, area: Rect, theme: &Th
     f.render_widget(Paragraph::new(lines), area);
 }
 
+fn task_row_text(task_text: &str, max_width: usize) -> String {
+    truncate_str(&format!("└─ {task_text}"), max_width)
+}
+
 pub(crate) fn shorten_model(model: &str, is_1m: bool) -> String {
     // "claude-opus-4-6" → "opus4.6", "claude-sonnet-4-6" → "sonnet4.6", "claude-haiku-4-5" → "haiku4.5"
     let s = model.strip_prefix("claude-").unwrap_or(model);
@@ -1337,5 +1341,129 @@ mod tests {
             !text.contains("[1m]"),
             "non-1M Codex context windows must not be labeled as 1M\n{text}"
         );
+    }
+
+    #[test]
+    fn task_row_text_respects_terminal_display_width() {
+        assert_eq!(task_row_text("ＡＢＣＤ", 6), "└─ Ａ…");
+    }
+
+    #[test]
+    fn session_table_clears_rows_when_selection_scrolls() {
+        let mut app = App::new_with_config(Theme::default(), &[], PanelVisibility::default());
+        app.sessions = vec![
+            test_session("first111", "first"),
+            test_session("second22", "second"),
+            test_session("third333", "third"),
+            test_session("fourth44", "fourth"),
+        ];
+        app.selected = 3;
+
+        let backend = TestBackend::new(120, 14);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 120,
+            height: 14,
+        };
+
+        terminal
+            .draw(|f| {
+                let lines = (0..area.height)
+                    .map(|_| Line::from("STALE".repeat(24)))
+                    .collect::<Vec<_>>();
+                f.render_widget(Paragraph::new(lines), area);
+            })
+            .unwrap();
+
+        terminal
+            .draw(|f| draw_sessions_panel(f, &app, area, &app.theme))
+            .unwrap();
+
+        app.selected = 2;
+        terminal
+            .draw(|f| draw_sessions_panel(f, &app, area, &app.theme))
+            .unwrap();
+
+        let text = format!("{}", terminal.backend());
+        assert!(
+            !text.contains("STALE") && !text.contains("fourth44"),
+            "offscreen session row should be cleared after selection scroll\n{text}"
+        );
+    }
+
+    #[test]
+    fn session_table_repaints_selection_marker_when_moving() {
+        let mut app = App::new_with_config(Theme::default(), &[], PanelVisibility::default());
+        app.sessions = vec![
+            test_session("first111", "first"),
+            test_session("second22", "second"),
+        ];
+
+        let backend = TestBackend::new(120, 14);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 120,
+            height: 14,
+        };
+
+        app.selected = 0;
+        terminal
+            .draw(|f| draw_sessions_panel(f, &app, area, &app.theme))
+            .unwrap();
+
+        app.selected = 1;
+        terminal
+            .draw(|f| draw_sessions_panel(f, &app, area, &app.theme))
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        assert_eq!(buffer[(1, 2)].symbol(), " ");
+        assert_eq!(buffer[(1, 4)].symbol(), "►");
+    }
+
+    fn test_session(session_id: &str, project_name: &str) -> AgentSession {
+        AgentSession {
+            agent_cli: "claude",
+            pid: 42,
+            session_id: session_id.into(),
+            cwd: format!("/tmp/{project_name}"),
+            project_name: project_name.into(),
+            started_at: 0,
+            status: SessionStatus::Waiting,
+            model: "claude-opus-4-6".into(),
+            effort: String::new(),
+            context_percent: 10.0,
+            total_input_tokens: 1_000,
+            total_output_tokens: 500,
+            total_cache_read: 0,
+            total_cache_create: 0,
+            turn_count: 1,
+            current_tasks: vec!["waiting for input".into()],
+            mem_mb: 0,
+            version: String::new(),
+            git_branch: String::new(),
+            git_added: 0,
+            git_modified: 0,
+            token_history: Vec::new(),
+            context_history: Vec::new(),
+            compaction_count: 0,
+            context_window: 200_000,
+            subagents: Vec::new(),
+            mem_file_count: 0,
+            mem_line_count: 0,
+            children: Vec::new(),
+            initial_prompt: "prompt".into(),
+            first_assistant_text: String::new(),
+            chat_messages: Vec::new(),
+            tool_calls: Vec::new(),
+            pending_since_ms: 0,
+            thinking_since_ms: 0,
+            file_accesses: Vec::new(),
+            config_root: "~/.claude".into(),
+        }
     }
 }

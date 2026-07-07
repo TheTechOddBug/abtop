@@ -19,6 +19,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ratatui::Frame;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 // ── braille graph symbols — from btop_draw.cpp ──────────────────────────────
 // 5x5 lookup: [prev_val * 5 + cur_val], values 0-4
@@ -982,10 +983,19 @@ pub(crate) fn truncate_str(s: &str, max: usize) -> String {
     if max == 0 {
         return String::new();
     }
-    if s.chars().count() <= max {
+    if UnicodeWidthStr::width(s) <= max {
         s.to_string()
     } else {
-        let truncated: String = s.chars().take(max - 1).collect();
+        let mut width = 0;
+        let mut truncated = String::new();
+        for ch in s.chars() {
+            let ch_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+            if width + ch_width >= max {
+                break;
+            }
+            truncated.push(ch);
+            width += ch_width;
+        }
         format!("{}…", truncated)
     }
 }
@@ -1009,6 +1019,11 @@ mod tests {
         // Regression: the quota panel used to render this raw as "341493ago"
         // because it formatted seconds without unit conversion.
         assert_eq!(fmt_age(341_493), "3d ago");
+    }
+
+    #[test]
+    fn truncate_str_respects_terminal_display_width() {
+        assert_eq!(truncate_str("ＡＢ123", 6), "ＡＢ1…");
     }
 
     #[test]

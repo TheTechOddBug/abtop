@@ -66,8 +66,8 @@ pub mod ui;
 
 use app::{App, JumpOutcome};
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
-    MouseEvent, MouseEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    MouseButton, MouseEvent, MouseEventKind,
 };
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
@@ -259,76 +259,9 @@ fn run_app(
         let had_input = if event::poll(render_interval)? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    if app.help_open {
-                        // Any key dismisses help.
-                        app.help_open = false;
-                    } else if app.view_open {
-                        match key.code {
-                            KeyCode::Esc | KeyCode::Char('v') => app.view_open = false,
-                            KeyCode::Char('T') => app.tree_view = !app.tree_view,
-                            KeyCode::Char('l') => app.toggle_timeline(),
-                            KeyCode::Char('f') => app.toggle_file_audit(),
-                            KeyCode::Char(c @ '1'..='7') => app.toggle_panel(c as u8 - b'0'),
-                            KeyCode::Char('M') => app.toggle_mcp_session_suppression(),
-                            KeyCode::Char('t') => app.cycle_theme(),
-                            _ => {}
-                        }
-                    } else if app.config_open {
-                        match key.code {
-                            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('c') => {
-                                app.toggle_config()
-                            }
-                            KeyCode::Down | KeyCode::Char('j') => app.config_select_next(),
-                            KeyCode::Up | KeyCode::Char('k') => app.config_select_prev(),
-                            KeyCode::Enter | KeyCode::Char(' ') => app.config_toggle_selected(),
-                            _ => {}
-                        }
-                    } else if app.filter_active {
-                        match key.code {
-                            KeyCode::Esc => app.clear_filter(),
-                            KeyCode::Enter => app.filter_active = false,
-                            KeyCode::Backspace => app.filter_pop(),
-                            KeyCode::Down => app.select_next(),
-                            KeyCode::Up => app.select_prev(),
-                            KeyCode::Char(c) => app.filter_push(c),
-                            _ => {}
-                        }
-                    } else {
-                        match key.code {
-                            KeyCode::Char('q') => app.quit(),
-                            KeyCode::Char('r') if !demo_mode => app.tick(),
-                            KeyCode::Down | KeyCode::Char('j') => app.select_next(),
-                            KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
-                            KeyCode::Right | KeyCode::Tab => app.select_next_narrow_tab(),
-                            KeyCode::Left | KeyCode::BackTab => app.select_prev_narrow_tab(),
-                            KeyCode::Char('w') => app.set_narrow_tab(app::NarrowTab::Work),
-                            KeyCode::Char('u') => app.set_narrow_tab(app::NarrowTab::Usage),
-                            KeyCode::Char('s') => app.set_narrow_tab(app::NarrowTab::System),
-                            KeyCode::Char('+') | KeyCode::Char('=') => {
-                                app.maximize_active_narrow_section()
-                            }
-                            KeyCode::Char('-') => app.restore_narrow_sections(),
-                            KeyCode::Char('x') if !demo_mode => app.kill_selected(),
-                            KeyCode::Char('X') if !demo_mode => app.kill_orphan_ports(),
-                            KeyCode::Char('t') => app.cycle_theme(),
-                            KeyCode::Char('T') => app.tree_view = !app.tree_view,
-                            KeyCode::Char('l') | KeyCode::Char('L') => app.toggle_timeline(),
-                            KeyCode::Char(c @ '1'..='7') => app.toggle_panel(c as u8 - b'0'),
-                            KeyCode::Char('M') => app.toggle_mcp_session_suppression(),
-                            KeyCode::Char('c') => app.toggle_config(),
-                            KeyCode::Char('v') => app.toggle_view_menu(),
-                            KeyCode::Char('?') => app.toggle_help(),
-                            KeyCode::Char('/') => app.filter_active = true,
-                            KeyCode::Esc if !app.filter_text.is_empty() => app.clear_filter(),
-                            KeyCode::Char('f') | KeyCode::Char('F') => app.toggle_file_audit(),
-                            KeyCode::Enter if !demo_mode => match app.jump_to_session() {
-                                JumpOutcome::Jumped if exit_on_jump => app.quit(),
-                                JumpOutcome::Failed(msg) => app.set_status(msg),
-                                JumpOutcome::Jumped | JumpOutcome::NoOp => {}
-                            },
-                            _ => {}
-                        }
-                    }
+                    handle_key_press(&mut app, key, demo_mode, exit_on_jump, |app| {
+                        app.jump_to_session()
+                    })
                 }
                 Event::Mouse(mouse) => {
                     let size = terminal.size()?;
@@ -359,6 +292,81 @@ fn run_app(
     }
 
     Ok(())
+}
+
+fn handle_key_press(
+    app: &mut App,
+    key: KeyEvent,
+    demo_mode: bool,
+    exit_on_jump: bool,
+    jump_to_session: impl FnOnce(&mut App) -> JumpOutcome,
+) {
+    if app.help_open {
+        // Any key dismisses help.
+        app.help_open = false;
+    } else if app.view_open {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('v') => app.view_open = false,
+            KeyCode::Char('T') => app.tree_view = !app.tree_view,
+            KeyCode::Char('l') => app.toggle_timeline(),
+            KeyCode::Char('f') => app.toggle_file_audit(),
+            KeyCode::Char(c @ '1'..='7') => app.toggle_panel(c as u8 - b'0'),
+            KeyCode::Char('M') => app.toggle_mcp_session_suppression(),
+            KeyCode::Char('t') => app.cycle_theme(),
+            _ => {}
+        }
+    } else if app.config_open {
+        match key.code {
+            KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('c') => app.toggle_config(),
+            KeyCode::Down | KeyCode::Char('j') => app.config_select_next(),
+            KeyCode::Up | KeyCode::Char('k') => app.config_select_prev(),
+            KeyCode::Enter | KeyCode::Char(' ') => app.config_toggle_selected(),
+            _ => {}
+        }
+    } else if app.filter_active {
+        match key.code {
+            KeyCode::Esc => app.clear_filter(),
+            KeyCode::Enter => app.filter_active = false,
+            KeyCode::Backspace => app.filter_pop(),
+            KeyCode::Down => app.select_next(),
+            KeyCode::Up => app.select_prev(),
+            KeyCode::Char(c) => app.filter_push(c),
+            _ => {}
+        }
+    } else {
+        match key.code {
+            KeyCode::Char('q') => app.quit(),
+            KeyCode::Char('r') if !demo_mode => app.tick(),
+            KeyCode::Down | KeyCode::Char('j') => app.select_next(),
+            KeyCode::Up | KeyCode::Char('k') => app.select_prev(),
+            KeyCode::Right | KeyCode::Tab => app.select_next_narrow_tab(),
+            KeyCode::Left | KeyCode::BackTab => app.select_prev_narrow_tab(),
+            KeyCode::Char('w') => app.set_narrow_tab(app::NarrowTab::Work),
+            KeyCode::Char('u') => app.set_narrow_tab(app::NarrowTab::Usage),
+            KeyCode::Char('s') => app.set_narrow_tab(app::NarrowTab::System),
+            KeyCode::Char('+') | KeyCode::Char('=') => app.maximize_active_narrow_section(),
+            KeyCode::Char('-') => app.restore_narrow_sections(),
+            KeyCode::Char('x') if !demo_mode => app.kill_selected(),
+            KeyCode::Char('X') if !demo_mode => app.kill_orphan_ports(),
+            KeyCode::Char('t') => app.cycle_theme(),
+            KeyCode::Char('T') => app.tree_view = !app.tree_view,
+            KeyCode::Char('l') | KeyCode::Char('L') => app.toggle_timeline(),
+            KeyCode::Char(c @ '1'..='7') => app.toggle_panel(c as u8 - b'0'),
+            KeyCode::Char('M') => app.toggle_mcp_session_suppression(),
+            KeyCode::Char('c') => app.toggle_config(),
+            KeyCode::Char('v') => app.toggle_view_menu(),
+            KeyCode::Char('?') => app.toggle_help(),
+            KeyCode::Char('/') => app.filter_active = true,
+            KeyCode::Esc if !app.filter_text.is_empty() => app.clear_filter(),
+            KeyCode::Char('f') | KeyCode::Char('F') => app.toggle_file_audit(),
+            KeyCode::Enter if !demo_mode => match jump_to_session(app) {
+                JumpOutcome::Jumped if exit_on_jump => app.quit(),
+                JumpOutcome::Failed(msg) => app.set_status(msg),
+                JumpOutcome::Jumped | JumpOutcome::NoOp => {}
+            },
+            _ => {}
+        }
+    }
 }
 
 fn handle_mouse_event(app: &mut App, mouse: MouseEvent, area: Rect) {
@@ -569,10 +577,39 @@ fn fmt_tok(n: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crossterm::event::{KeyEvent, KeyModifiers};
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn mouse_capture_is_opt_in() {
         assert!(!should_enable_mouse_capture(["abtop"]));
         assert!(should_enable_mouse_capture(["abtop", "--mouse"]));
+    }
+
+    #[test]
+    fn enter_jump_failure_renders_footer_status() {
+        let mut app = App::new_with_config(
+            theme::Theme::default(),
+            &[],
+            config::PanelVisibility::default(),
+        );
+        demo::populate_demo(&mut app);
+
+        handle_key_press(
+            &mut app,
+            KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
+            false,
+            false,
+            |_| JumpOutcome::Failed("cmux: socket broken; restart cmux".to_string()),
+        );
+
+        let backend = TestBackend::new(120, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|f| ui::draw(f, &app)).unwrap();
+        let text = format!("{}", terminal.backend());
+
+        assert!(text.contains("cmux: socket broken; restart cmux"));
+        assert!(!text.contains("Broken pipe"));
+        assert!(!text.contains("select-workspace"));
     }
 }
